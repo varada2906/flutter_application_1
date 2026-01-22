@@ -295,22 +295,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   title: 'Ticket History',
                   onTap: () {},
                 ),
-                _buildMenuItem(
-                  icon: Icons.card_giftcard,
-                  title: 'My Rewards',
-                  trailing: _tag("Coming Soon", Colors.orange),
-                  onTap: () {},
-                ),
-                _buildMenuItem(
-                  icon: Icons.share_location,
-                  title: 'Share My Location',
-                  onTap: () {},
-                ),
-                _buildMenuItem(
-                  icon: Icons.language,
-                  title: 'Change Language',
-                  onTap: () {},
-                ),
+              
                 _buildMenuItem(
                   icon: Icons.call_outlined,
                   title: 'Contact Us',

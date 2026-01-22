@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_application_1/models/chatgpt_screen.dart';
 import 'package:flutter_application_1/screens/chatgpt_service.dart' show ChatGPTService;
 
-
 class ChatScreen extends StatefulWidget {
   @override
   _ChatScreenState createState() => _ChatScreenState();
@@ -50,71 +49,28 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Setting a uniform background color for a clean look
     return Scaffold(
+      // This ensures the screen resizes when the keyboard opens
+      resizeToAvoidBottomInset: true, 
       backgroundColor: Colors.white,
       appBar: AppBar(
         title: Text(
           "🚌 Smart Pune Commute Expert", 
-          style: TextStyle(color: Colors.white)
+          style: TextStyle(color: Colors.white, fontSize: 18)
         ), 
         backgroundColor: Color(0xFF0D47A1), // Deep Blue
+        elevation: 2,
       ),
       body: Column(
         children: [
-          // Commute prompt suggestions
-          Container(
-            height: 100,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              border: Border(bottom: BorderSide(color: Colors.grey.shade200, width: 1))
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: EdgeInsets.all(12.0),
-                  child: Text(
-                    "Commute Questions to Try:",
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold, 
-                      color: Color(0xFF0D47A1), // Deep Blue
-                      fontSize: 14
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: _commutePrompts.length,
-                    itemBuilder: (context, index) {
-                      return Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 6.0),
-                        child: ActionChip(
-                          label: Text(
-                            _commutePrompts[index],
-                            style: TextStyle(fontSize: 12),
-                          ),
-                          onPressed: () => _usePrompt(_commutePrompts[index]),
-                          backgroundColor: Color(0xFFE3F2FD), // Light Blue Background
-                          labelStyle: TextStyle(color: Color(0xFF0D47A1)), // Deep Blue Text
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
-                            side: BorderSide(color: Color(0xFF90CAF9)),
-                          )
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
+          // 1. Commute prompt suggestions (Top Bar)
+          _buildSuggestionBar(),
           
+          // 2. Chat Messages Area (Expanded to fill space)
           Expanded(
             child: ListView.builder(
-              reverse: true, // Show newest messages at the bottom
-              padding: EdgeInsets.all(10),
+              reverse: true, // Newest messages at the bottom
+              padding: EdgeInsets.symmetric(horizontal: 15, vertical: 10),
               itemCount: _messages.length + (_isLoading ? 1 : 0),
               itemBuilder: (context, index) {
                 if (index == 0 && _isLoading) {
@@ -126,8 +82,88 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           ),
           
+          // 3. Fixed Input Area (Always visible)
           _buildInputArea(),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSuggestionBar() {
+    return Container(
+      height: 90,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border(bottom: BorderSide(color: Colors.grey.shade200, width: 1))
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: EdgeInsets.only(left: 12, top: 8),
+            child: Text(
+              "Commute Questions to Try:",
+              style: TextStyle(
+                fontWeight: FontWeight.bold, 
+                color: Color(0xFF0D47A1), 
+                fontSize: 13
+              ),
+            ),
+          ),
+          Expanded(
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: EdgeInsets.symmetric(horizontal: 8),
+              itemCount: _commutePrompts.length,
+              itemBuilder: (context, index) {
+                return Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 4.0),
+                  child: ActionChip(
+                    label: Text(
+                      _commutePrompts[index],
+                      style: TextStyle(fontSize: 11),
+                    ),
+                    onPressed: () => _usePrompt(_commutePrompts[index]),
+                    backgroundColor: Color(0xFFE3F2FD),
+                    labelStyle: TextStyle(color: Color(0xFF0D47A1)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      side: BorderSide(color: Color(0xFF90CAF9)),
+                    )
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMessageBubble(ChatMessage msg) {
+    bool isUser = msg.isUser;
+    return Align(
+      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        padding: EdgeInsets.all(12),
+        margin: EdgeInsets.symmetric(vertical: 6),
+        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
+        decoration: BoxDecoration(
+          color: isUser ? Color(0xFF0D47A1) : Color(0xFFF1F1F1),
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(15),
+            topRight: Radius.circular(15),
+            bottomLeft: isUser ? Radius.circular(15) : Radius.circular(0),
+            bottomRight: isUser ? Radius.circular(0) : Radius.circular(15),
+          ),
+        ),
+        child: Text(
+          msg.message, 
+          style: TextStyle(
+            color: isUser ? Colors.white : Colors.black87, 
+            fontSize: 14
+          )
+        ),
       ),
     );
   }
@@ -138,26 +174,19 @@ class _ChatScreenState extends State<ChatScreen> {
       child: Container(
         padding: EdgeInsets.all(12),
         margin: EdgeInsets.symmetric(vertical: 5),
-        constraints: BoxConstraints(maxWidth: 400),
         decoration: BoxDecoration(
-          color: Color(0xFF90CAF9), // Light Blue
+          color: Color(0xFFE3F2FD),
           borderRadius: BorderRadius.circular(10),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              "Calculating best Pune route...", // Updated text
-              style: TextStyle(color: Colors.black87, fontSize: 14),
-            ),
-            SizedBox(width: 8),
+            Text("Calculating best route...", style: TextStyle(fontSize: 13)),
+            SizedBox(width: 10),
             SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: Color(0xFF0D47A1), // Deep Blue loading indicator
-              ),
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF0D47A1)),
             ),
           ],
         ),
@@ -165,60 +194,49 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  Widget _buildMessageBubble(ChatMessage msg) {
-    return Align(
-      alignment: msg.isUser ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        padding: EdgeInsets.all(12),
-        margin: EdgeInsets.symmetric(vertical: 5),
-        constraints: BoxConstraints(maxWidth: 400),
-        decoration: BoxDecoration(
-          // Blue theme for bubbles
-          color: msg.isUser ? Color(0xFF1565C0) : Color(0xFF42A5F5), // Blue/Lighter Blue
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Text(
-          msg.message, 
-          style: TextStyle(color: Colors.white, fontSize: 14)
-        ),
-      ),
-    );
-  }
-
   Widget _buildInputArea() {
-    return Padding(
-      padding: EdgeInsets.all(10),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _controller,
-              style: TextStyle(color: Colors.black87), // Ensure input text is readable
-              decoration: InputDecoration(
-                hintText: "Ask about Pune traffic, routes, or metro...", // Updated hint
-                hintStyle: TextStyle(color: Colors.grey[600]),
-                filled: true,
-                fillColor: Colors.grey[100], // Very light background
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide.none,
-                ),
-                contentPadding: EdgeInsets.symmetric(horizontal: 15, vertical: 12),
-              ),
-              onSubmitted: (_) => _handleSend(),
-            ),
-          ),
-          SizedBox(width: 10),
-          ElevatedButton(
-            onPressed: _handleSend,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Color(0xFF0D47A1), // Deep Blue button
-              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-            child: Text("Send", style: TextStyle(color: Colors.white)),
-          ),
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, -2))
         ],
+      ),
+      child: SafeArea(
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _controller,
+                  style: TextStyle(color: Colors.black87),
+                  decoration: InputDecoration(
+                    hintText: "Ask about Pune traffic or metro...",
+                    hintStyle: TextStyle(color: Colors.grey[500]),
+                    filled: true,
+                    fillColor: Colors.grey[100],
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(25),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  ),
+                  onSubmitted: (_) => _handleSend(),
+                ),
+              ),
+              SizedBox(width: 8),
+              GestureDetector(
+                onTap: _handleSend,
+                child: CircleAvatar(
+                  backgroundColor: Color(0xFF0D47A1),
+                  radius: 22,
+                  child: Icon(Icons.send, color: Colors.white, size: 18),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

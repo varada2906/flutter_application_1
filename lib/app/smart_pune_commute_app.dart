@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_application_1/admin/admin_dash.dart';
+import 'package:flutter_application_1/admin/metro_details.dart';
 import 'package:flutter_application_1/driver/driver_dashboard.dart';
 import 'package:flutter_application_1/driver/end_trip_screen.dart';
 import 'package:flutter_application_1/driver/live_location_screen.dart';
@@ -9,6 +10,7 @@ import 'package:flutter_application_1/screens/accessiblity/accessibilty_mode_lis
 import 'package:flutter_application_1/screens/chatgpt_controller.dart';
 import 'package:flutter_application_1/screens/feedback/passenger_flow_prediction.dart';
 import 'package:flutter_application_1/screens/feedback_screen.dart';
+import 'package:flutter_application_1/screens/metrodetailsPage.dart';
 import 'package:flutter_application_1/screens/payment_succesful.dart';
 import 'package:flutter_application_1/screens/predictive_alerts.dart';
 import 'package:flutter_application_1/screens/route_suggestion_screen.dart';
@@ -55,6 +57,10 @@ class SmartPuneCommuteApp extends StatelessWidget {
          '/driver/routeInfo': (context) => const RouteInfoScreen(),
         '/driver/liveLocation': (context) => const LiveLocationScreen(),
         '/driver/endTrip': (context) => const EndTripScreen(),
+       '/metro-search': (context) => MetroSearchScreen(), // Metro search for users
+     '/metro-management': (context) => MetroDetailsPage(), // Admin metro management
+
+     
       },
     );
   }

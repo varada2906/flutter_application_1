@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:curved_navigation_bar/curved_navigation_bar.dart';
 import 'package:flutter_application_1/models/route_suggstion_args.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 // Enum to represent the different transport modes
 enum TransportMode { bus, train }
@@ -13,25 +14,94 @@ class SearchScreen extends StatefulWidget {
 }
 
 class _SearchScreenState extends State<SearchScreen> {
+  static const double _navHeight = 75.0;
   final TextEditingController fromController =
-      TextEditingController(text: "Pune"); // Changed default to Pune
+      TextEditingController(text: "Pune");
   final TextEditingController toController =
-      TextEditingController(text: "Mumbai"); // Changed default to Mumbai
+      TextEditingController(text: "Mumbai");
   DateTime selectedDateTime = DateTime.now();
 
   int _page = 1;
   final GlobalKey<CurvedNavigationBarState> _bottomNavigationKey = GlobalKey();
 
-  // NEW: State variable for selected transport mode
   TransportMode _selectedMode = TransportMode.bus;
-
-  // ⭐️ NEW: Notification count state variable
   int _notificationCount = 0;
-
-  // ⭐️ NEW: Mock Notification Data Structure
   List<Map<String, String>> _notifications = [];
 
-  // ⭐️ NEW: Function to simulate adding a new ticket notification
+  // Firestore instance
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  
+  // Store buses from Firestore
+  List<Map<String, dynamic>> _firestoreBuses = [];
+
+  @override
+  void initState() {
+    super.initState();
+    // Load data from Firestore
+    _loadBusesFromFirestore();
+  }
+
+  // Load buses from Firestore
+  Future<void> _loadBusesFromFirestore() async {
+    try {
+      final snapshot = await _firestore.collection('buses').get();
+      setState(() {
+        _firestoreBuses = snapshot.docs.map((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          return {
+            'id': doc.id,
+            'route': data['route'] ?? '',
+            'buses': data['buses']?.toString() ?? '0',
+            'type': data['type'] ?? 'Electric',
+            'price': data['price'] ?? '₹500',
+            'from': data['from'] ?? 'Pune',
+            'to': data['to'] ?? 'Mumbai',
+            'rating': data['rating']?.toDouble() ?? 4.5,
+            'stops': data['stops'] ?? 1,
+          };
+        }).toList();
+      });
+    } catch (e) {
+      print('Error loading buses: $e');
+    }
+  }
+
+  // Book ticket and save to Firestore
+  Future<void> _bookTicket(String from, String to, String price) async {
+    try {
+      // Add to tickets collection
+      await _firestore.collection('tickets').add({
+        'from': from,
+        'to': to,
+        'date': selectedDateTime,
+        'price': price,
+        'bookingDate': DateTime.now(),
+        'status': 'confirmed',
+        'userId': 'user123', // You can replace with actual user ID
+      });
+
+      // Add notification
+      _addNewTicketNotification(from, to);
+      
+      // Show success message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Ticket booked successfully! $from → $to'),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      print('Error booking ticket: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to book ticket. Please try again.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   void _addNewTicketNotification(String from, String to) {
     setState(() {
       _notificationCount++;
@@ -44,7 +114,6 @@ class _SearchScreenState extends State<SearchScreen> {
     });
   }
 
-  // ⭐️ NEW: Function to simulate adding a new destination/pass notification
   void _addNewDestinationBusNotification(String from, String to) {
     setState(() {
       _notificationCount++;
@@ -57,7 +126,6 @@ class _SearchScreenState extends State<SearchScreen> {
     });
   }
 
-  // ⭐️ NEW: Function to handle the notification icon tap
   void _onNotificationTap() {
     Navigator.push(
       context,
@@ -67,7 +135,6 @@ class _SearchScreenState extends State<SearchScreen> {
         ),
       ),
     ).then((_) {
-      // Clear the badge count when the user returns from the notification screen
       setState(() {
         _notificationCount = 0;
       });
@@ -101,7 +168,6 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   String getFormattedDateTime() {
-    // A more complete date format for bus tickets
     final month = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][selectedDateTime.month - 1];
     return "${selectedDateTime.day} $month, ${selectedDateTime.year}";
   }
@@ -111,7 +177,7 @@ class _SearchScreenState extends State<SearchScreen> {
     required Color iconColor,
     required String title,
     required String subtitle,
-    required VoidCallback onTap, // Added onTap handler
+    required VoidCallback onTap,
   }) {
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 8),
@@ -130,7 +196,7 @@ class _SearchScreenState extends State<SearchScreen> {
           ),
         ),
         subtitle: Text(subtitle),
-        onTap: onTap, // Use the provided onTap function
+        onTap: onTap,
       ),
     );
   }
@@ -219,43 +285,82 @@ class _SearchScreenState extends State<SearchScreen> {
             Row(
               children: [
                 Expanded(
-                  child: TextField(
-                    controller: fromController,
-                    readOnly: true,
-                    decoration: InputDecoration(
-                      hintText: fromController.text,
-                      labelText: 'From',
-                      floatingLabelBehavior: FloatingLabelBehavior.always,
-                      prefixIcon: const Icon(Icons.circle, size: 10, color: Colors.blue),
-                      border: InputBorder.none,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        "From",
+                        style: TextStyle(
+                          color: Colors.grey,
+                          fontSize: 12,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey.shade300),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.circle, size: 10, color: Colors.blue),
+                            const SizedBox(width: 8),
+                            Text(
+                              fromController.text,
+                              style: const TextStyle(fontSize: 16),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 IconButton(
                   icon: const Icon(Icons.swap_horiz, color: Colors.grey),
                   onPressed: () {
-                    // Swap logic
                     String temp = fromController.text;
                     fromController.text = toController.text;
                     toController.text = temp;
+                    setState(() {});
                   },
                 ),
                 Expanded(
-                  child: TextField(
-                    controller: toController,
-                    readOnly: true,
-                    decoration: InputDecoration(
-                      hintText: toController.text,
-                      labelText: 'To',
-                      floatingLabelBehavior: FloatingLabelBehavior.always,
-                      prefixIcon: const Icon(Icons.location_on, size: 18, color: Colors.red),
-                      border: InputBorder.none,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        "To",
+                        style: TextStyle(
+                          color: Colors.grey,
+                          fontSize: 12,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey.shade300),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.location_on, size: 18, color: Colors.red),
+                            const SizedBox(width: 8),
+                            Text(
+                              toController.text,
+                              style: const TextStyle(fontSize: 16),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
-            const Divider(), // Separator line
+            const SizedBox(height: 16),
+            const Divider(),
 
             // Date Picker Row
             InkWell(
@@ -287,14 +392,14 @@ class _SearchScreenState extends State<SearchScreen> {
 
             const SizedBox(height: 16),
 
-            // Search Button (dynamically uses the selected mode's icon and text)
+            // Search Button
             ElevatedButton.icon(
               onPressed: () {
-                // ⭐️ NEW: Add mock notifications when the search/book button is pressed
+                // Add notifications
                 _addNewTicketNotification(fromController.text, toController.text);
                 _addNewDestinationBusNotification(fromController.text, toController.text);
 
-                // Existing navigation logic
+                // Navigate
                 Navigator.pushNamed(
                   context,
                   '/routeSuggestions',
@@ -322,7 +427,54 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   Widget _buildPopularRoutes() {
-    // UPDATED: Pune-specific popular routes for Bus/General travel
+    // UPDATED: Show both Firestore data and hardcoded routes
+    final List<Map<String, dynamic>> allRoutes = [
+      // Hardcoded routes (always shown)
+      {
+        'city1': "Pune",
+        'city2': "Mumbai",
+        'rating': 4.8,
+        'price': "₹450",
+        'stops': 1,
+        'isFirestore': false,
+      },
+      {
+        'city1': "Pune",
+        'city2': "Nashik",
+        'rating': 4.6,
+        'price': "₹350",
+        'stops': 0,
+        'isFirestore': false,
+      },
+      {
+        'city1': "Pune",
+        'city2': "Goa",
+        'rating': 4.7,
+        'price': "₹900",
+        'stops': 3,
+        'isFirestore': false,
+      },
+      {
+        'city1': "Pune",
+        'city2': "Bangalore",
+        'rating': 4.5,
+        'price': "₹1200",
+        'stops': 2,
+        'isFirestore': false,
+      },
+      // Add Firestore routes (if available)
+      ..._firestoreBuses.take(4).map((bus) {
+        return {
+          'city1': bus['from'] ?? 'Pune',
+          'city2': bus['to'] ?? 'Destination',
+          'rating': bus['rating'] ?? 4.5,
+          'price': bus['price'] ?? '₹500',
+          'stops': bus['stops'] ?? 1,
+          'isFirestore': true,
+        };
+      }).toList(),
+    ];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -341,104 +493,84 @@ class _SearchScreenState extends State<SearchScreen> {
           ],
         ),
         const SizedBox(height: 8),
-        SizedBox(
-          height: 180, // Height for the horizontal list
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            children: [
-              _popularRouteCard(
-                city1: "Pune",
-                city2: "Mumbai",
-                rating: 4.8,
-                price: "₹450",
-                stops: 1,
-              ),
-              _popularRouteCard(
-                city1: "Pune",
-                city2: "Nashik",
-                rating: 4.6,
-                price: "₹350",
-                stops: 0,
-              ),
-              _popularRouteCard(
-                city1: "Pune",
-                city2: "Goa",
-                rating: 4.7,
-                price: "₹900",
-                stops: 3,
-              ),
-                _popularRouteCard(
-                city1: "Pune",
-                city2: "Bangalore",
-                rating: 4.5,
-                price: "₹1200",
-                stops: 2,
-              ),
-            ],
+        // FIXED: Using SingleChildScrollView for horizontal scrolling
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: allRoutes.take(8).map((route) {
+              return Container(
+                width: 150,
+                margin: const EdgeInsets.only(right: 12),
+                child: Card(
+                  elevation: 2,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  color: route['isFirestore'] ? Colors.blue.shade50 : null,
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: Colors.yellow.shade100,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.star, color: Colors.orange, size: 14),
+                                  const SizedBox(width: 4),
+                                  Text(route['rating'].toStringAsFixed(1), 
+                                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                ],
+                              ),
+                            ),
+                            if (route['isFirestore'])
+                              Container(
+                                padding: const EdgeInsets.all(2),
+                                decoration: BoxDecoration(
+                                  color: Colors.green.shade100,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: const Text(
+                                  "Live",
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.green,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text("${route['city1']} - ${route['city2']}",
+                            style: const TextStyle(fontWeight: FontWeight.bold)),
+                        Text("${route['stops']} stops", 
+                            style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                        const SizedBox(height: 8),
+                        Text(route['price'],
+                            style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black)),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
           ),
         ),
       ],
     );
   }
 
-  Widget _popularRouteCard({
-    required String city1,
-    required String city2,
-    required double rating,
-    required String price,
-    required int stops,
-  }) {
-    // Card design for popular routes
-    return Container(
-      width: 150,
-      margin: const EdgeInsets.only(right: 12),
-      child: Card(
-        elevation: 2,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: Colors.yellow.shade100,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.star, color: Colors.orange, size: 14),
-                        const SizedBox(width: 4),
-                        Text(rating.toString(), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text("$city1 - $city2",
-                  style: const TextStyle(fontWeight: FontWeight.bold)),
-              Text("${stops} stops", style: const TextStyle(color: Colors.grey, fontSize: 12)),
-              const SizedBox(height: 8),
-              Text(price,
-                  style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black)),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildSpecialOffers() {
-    // Mimics the "Special Offers" section
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -448,7 +580,7 @@ class _SearchScreenState extends State<SearchScreen> {
         ),
         const SizedBox(height: 8),
         Container(
-          height: 120, // Height for the offer card
+          height: 120,
           width: double.infinity,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
@@ -503,43 +635,91 @@ class _SearchScreenState extends State<SearchScreen> {
         titleText = "Top Bus Routes from Pune 🚌";
         modeIcon = Icons.directions_bus;
         iconColor = Colors.green.shade700;
-        routeData = [
-          {"title": "Pune to Shirdi", "subtitle": "Pilgrimage special buses"},
-          {"title": "Pune to Kolhapur", "subtitle": "Frequent state transport"},
-          {"title": "Pune to Hyderabad", "subtitle": "Overnight sleeper service"},
+        
+        // Combine hardcoded routes with Firestore routes
+        final hardcodedRoutes = [
+          {"title": "Pune to Shirdi", "subtitle": "Pilgrimage special buses", "isFirestore": false},
+          {"title": "Pune to Kolhapur", "subtitle": "Frequent state transport", "isFirestore": false},
+          {"title": "Pune to Hyderabad", "subtitle": "Overnight sleeper service", "isFirestore": false},
         ];
+        
+        // Get Firestore routes
+        final firestoreRoutes = _firestoreBuses.take(3).map((bus) {
+          return {
+            "title": "${bus['from']} to ${bus['to']}",
+            "subtitle": "${bus['type']} - ${bus['price']}",
+            "isFirestore": true,
+          };
+        }).toList();
+        
+        // Combine routes (Firestore first, then hardcoded)
+        routeData = [...firestoreRoutes, ...hardcodedRoutes].take(3).toList();
         break;
+        
       case TransportMode.train:
         titleText = "Top Train Routes from Pune 🚆";
         modeIcon = Icons.train;
         iconColor = Colors.blue.shade700;
         routeData = [
-          {"title": "Pune to Nagpur", "subtitle": "Maharastra Express available"},
-          {"title": "Pune to Delhi", "subtitle": "High-speed Rajdhani"},
-          {"title": "Pune to Chennai", "subtitle": "South India connectivity"},
+          {"title": "Pune to Nagpur", "subtitle": "Maharastra Express available", "isFirestore": false},
+          {"title": "Pune to Delhi", "subtitle": "High-speed Rajdhani", "isFirestore": false},
+          {"title": "Pune to Chennai", "subtitle": "South India connectivity", "isFirestore": false},
         ];
         break;
     }
 
     // Build the list of routeOptionItem widgets
     List<Widget> routeItems = routeData.map((data) {
-      return routeOptionItem(
-        icon: modeIcon,
-        iconColor: iconColor,
-        title: data['title']!,
-        subtitle: data['subtitle']!,
-        onTap: () {
-          // --- START OF NEW LOGIC ---
-          final parts = data['title']!.split(' to ');
-          if (parts.length == 2) {
-            Navigator.pushNamed(
-              context,
-              '/routeSuggestions',
-              arguments: RouteSuggestionArgs(parts[0], parts[1]),
-            );
-          }
-          // --- END OF NEW LOGIC ---
-        },
+      return Card(
+        margin: const EdgeInsets.symmetric(vertical: 8),
+        elevation: 2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        color: data['isFirestore'] == true ? Colors.blue.shade50 : null,
+        child: ListTile(
+          leading: CircleAvatar(
+            backgroundColor: iconColor.withOpacity(0.15),
+            child: Icon(modeIcon, color: iconColor),
+          ),
+          title: Row(
+            children: [
+              Text(
+                data['title']!,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 16,
+                ),
+              ),
+              if (data['isFirestore'] == true)
+                Container(
+                  margin: const EdgeInsets.only(left: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade100,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const Text(
+                    "Live",
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          subtitle: Text(data['subtitle']!),
+          onTap: () {
+            final parts = data['title']!.split(' to ');
+            if (parts.length == 2) {
+              Navigator.pushNamed(
+                context,
+                '/routeSuggestions',
+                arguments: RouteSuggestionArgs(parts[0], parts[1]),
+              );
+            }
+          },
+        ),
       );
     }).toList();
 
@@ -557,129 +737,121 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
-  // --- MAIN BUILD METHOD ---
+  // --- MAIN BUILD METHOD (FIXED VERSION) ---
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
-
-      // Curved Navigation Bar (unmodified)
-      bottomNavigationBar: CurvedNavigationBar(
-        key: _bottomNavigationKey,
-        index: 1,
-        height: 60,
-        backgroundColor: Colors.transparent,
-        color: Colors.white,
-        buttonBackgroundColor: Colors.blue.shade50,
-        animationCurve: Curves.easeInOut,
-        animationDuration: const Duration(milliseconds: 400),
-        items: const [
-          Icon(Icons.person, size: 30, color: Colors.blue), // Profile
-          Icon(Icons.search, size: 30, color: Colors.blue), // Search Page
-          Icon(Icons.accessibility_new,
-              size: 30, color: Colors.blue), // Accessibility
-          Icon(Icons.chat_bubble_outline, size: 30, color: Colors.blue), // Chatbot
-        ],
-        onTap: handleNavTap,
-      ),
+      
+       bottomNavigationBar: SafeArea(
+  top: false,
+  child: CurvedNavigationBar(
+    key: _bottomNavigationKey,
+    index: 1,
+    height: 70, 
+    backgroundColor: Colors.transparent,
+    color: Colors.blue.shade600,
+    buttonBackgroundColor: Colors.blue.shade800,
+    items: const [
+      Icon(Icons.person, size: 30, color: Colors.white),
+      Icon(Icons.search, size: 30, color: Colors.white),
+      Icon(Icons.accessibility_new, size: 30, color: Colors.white),
+      Icon(Icons.chat_bubble_outline, size: 30, color: Colors.white),
+    ],
+    onTap: handleNavTap,
+  ),
+),
 
       body: SafeArea(
-        key: ValueKey(_page),
-        child: ListView(
-          padding: const EdgeInsets.only(top: 24, left: 16, right: 16),
-          children: [
-            // 1. Welcome Header
-            Row(
+        bottom: false,
+        child: Padding(
+          padding: EdgeInsets.only(
+            top: 24,
+            left: 16,
+            right: 16,
+            bottom: 0
+          ),
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Welcome Back! 👋',
-                        style: TextStyle(
-                            fontSize: 22, fontWeight: FontWeight.bold),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        'Ready for your next adventure?',
-                        style: TextStyle(color: Colors.grey),
-                      ),
-                    ],
-                  ),
-                ),
-                // ⭐️ UPDATED: Notification icon with badge
-                GestureDetector(
-                  onTap: _onNotificationTap,
-                  child: Stack(
-                    children: [
-                      CircleAvatar(
-                        radius: 20,
-                        backgroundColor: Colors.blue.shade100,
-                        child: const Icon(Icons.notifications_none, color: Colors.blue),
-                      ),
-                      if (_notificationCount > 0)
-                        Positioned(
-                          right: 0,
-                          top: 0,
-                          child: Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: BoxDecoration(
-                              color: Colors.red,
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 2),
-                            ),
-                            constraints: const BoxConstraints(
-                              minWidth: 16,
-                              minHeight: 16,
-                            ),
-                            child: Text(
-                              _notificationCount.toString(),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
+                // 1. Welcome Header
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Welcome Back! 👋',
+                            style: TextStyle(
+                                fontSize: 22, fontWeight: FontWeight.bold),
                           ),
-                        )
+                          SizedBox(height: 4),
+                          Text(
+                            'Ready for your next adventure?',
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                        ],
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: _onNotificationTap,
+                      child: Stack(
+                        children: [
+                          CircleAvatar(
+                            radius: 20,
+                            backgroundColor: Colors.blue.shade100,
+                            child: const Icon(Icons.notifications_none,
+                                color: Colors.blue),
+                          ),
+                          if (_notificationCount > 0)
+                            Positioned(
+                              right: 0,
+                              top: 0,
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: const BoxDecoration(
+                                  color: Colors.red,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Text(
+                                  _notificationCount.toString(),
+                                  style: const TextStyle(
+                                      color: Colors.white, fontSize: 10),
+                                ),
+                              ),
+                            )
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 12),
+
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _buildTransportButton(
+                          TransportMode.bus, "Bus", Icons.directions_bus),
+                      const SizedBox(width: 8),
+                      _buildTransportButton(
+                          TransportMode.train, "Train", Icons.train),
                     ],
                   ),
                 ),
+
+                _buildSearchCard(),
+                _buildPopularRoutes(),
+                const SizedBox(height: 16),
+                _buildSpecialOffers(),
+                _buildRecommendedRoutes(),
               ],
             ),
-
-            const SizedBox(height: 20),
-
-            // Transport Selection Tab Bar
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.only(bottom: 8.0),
-              child: Row(
-                children: [
-                  _buildTransportButton(
-                      TransportMode.bus, "Bus", Icons.directions_bus),
-                  const SizedBox(width: 8),
-                  _buildTransportButton(
-                      TransportMode.train, "Train", Icons.train),
-                ],
-              ),
-            ),
-
-            // 2. Search Card
-            _buildSearchCard(),
-
-            // 3. Popular Routes (Now Pune-centric)
-            _buildPopularRoutes(),
-            const SizedBox(height: 20),
-
-            // 4. Special Offers
-            _buildSpecialOffers(),
-
-            // 5. Dynamic Recommended Routes based on selected transport mode (Now Pune-centric)
-            _buildRecommendedRoutes(),
-          ],
+          ),
         ),
       ),
     );

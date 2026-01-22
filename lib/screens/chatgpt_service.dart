@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 
 class ChatGPTService { // Class name is ChatGPTService
   // ⚠️ NOTE: Replace with your actual, secure API Key
-  static const String apiKey = "AIzaSyCyEowcB2uuGjxePsmb82QZkvqlc5bt1lo";
+  static const String apiKey = "AIzaSyBOz1313X3SPz3oyWg_0tW6PxBUYiTYOrI";
   static const String modelName = "gemini-2.0-flash";
   static const int timeoutSeconds = 30;
 

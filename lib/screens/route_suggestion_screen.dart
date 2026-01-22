@@ -17,9 +17,6 @@ class _RouteSuggestionsScreenState extends State<RouteSuggestionsScreen> {
 
   GoogleMapController? _mapController;
 
-  // --- START OF NEW/UPDATED LOGIC ---
-
-  // Simulated geocoding data using real-world coordinates
   static const Map<String, LatLng> _locationCoords = {
     "Pune": LatLng(18.5204, 73.8567),
     "Mumbai": LatLng(19.0760, 72.8777),
@@ -29,20 +26,14 @@ class _RouteSuggestionsScreenState extends State<RouteSuggestionsScreen> {
     "Nagpur": LatLng(21.1458, 79.0882),
     "Delhi": LatLng(28.7041, 77.1025),
     "Chennai": LatLng(13.0827, 80.2707),
-    // Use fallback for locations not explicitly mapped
     "Default": LatLng(18.5204, 73.8567),
   };
 
-  // Dynamic coordinates based on route args
   LatLng _fromLatLng = _locationCoords["Pune"]!;
   LatLng _toLatLng = _locationCoords["Mumbai"]!;
-
-  // Dynamic route/ticket data
   Map<String, String> liveRoute = {};
 
-  // Helper to find coordinates, falling back to a default if not found
   LatLng _getLatLng(String locationName) {
-    // Simple check to find major city names regardless of case/extra spaces
     final key = _locationCoords.keys.firstWhere(
       (k) => locationName.toLowerCase().contains(k.toLowerCase()),
       orElse: () => "Default",
@@ -50,7 +41,6 @@ class _RouteSuggestionsScreenState extends State<RouteSuggestionsScreen> {
     return _locationCoords[key] ?? _locationCoords["Default"]!;
   }
 
-  // Helper to simulate dynamic route/ticket data
   Map<String, String> _getSimulatedRoute(String from, String to) {
     if (from.contains("Pune") && to.contains("Shirdi")) {
       return {
@@ -71,7 +61,6 @@ class _RouteSuggestionsScreenState extends State<RouteSuggestionsScreen> {
         'price': '₹650',
       };
     }
-    // Default route suggestion
     return {
       'icon': 'directions_bus',
       'mode': 'Bus Suggestion',
@@ -82,15 +71,12 @@ class _RouteSuggestionsScreenState extends State<RouteSuggestionsScreen> {
     };
   }
 
-  // --- END OF NEW/UPDATED LOGIC ---
-
   @override
   void initState() {
     super.initState();
-    _checkPermission(); // ✅ check permission before map load
+    _checkPermission();
   }
 
-  // ✅ Permission checking logic
   Future<void> _checkPermission() async {
     var status = await Permission.location.status;
     if (!status.isGranted) {
@@ -101,33 +87,39 @@ class _RouteSuggestionsScreenState extends State<RouteSuggestionsScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final args =
-        ModalRoute.of(context)!.settings.arguments as RouteSuggestionArgs?;
+    final args = ModalRoute.of(context)!.settings.arguments as RouteSuggestionArgs?;
 
     if (args != null) {
       fromLocation = args.from;
       toLocation = args.to;
-      // Calculate dynamic coordinates and route details
-      _fromLatLng = _getLatLng(fromLocation);
-      _toLatLng = _getLatLng(toLocation);
-      liveRoute = _getSimulatedRoute(fromLocation, toLocation);
     } else {
-      // Use Pune to Mumbai as a fallback route for demonstration
       fromLocation = 'Pune';
       toLocation = 'Mumbai';
-      _fromLatLng = _getLatLng(fromLocation);
-      _toLatLng = _getLatLng(toLocation);
-      liveRoute = _getSimulatedRoute(fromLocation, toLocation);
     }
+    _fromLatLng = _getLatLng(fromLocation);
+    _toLatLng = _getLatLng(toLocation);
+    liveRoute = _getSimulatedRoute(fromLocation, toLocation);
   }
 
   void _onMapCreated(GoogleMapController controller) {
     _mapController = controller;
+    
+    // Auto-fit the map to show both markers
+    LatLngBounds bounds = LatLngBounds(
+      southwest: LatLng(
+        _fromLatLng.latitude < _toLatLng.latitude ? _fromLatLng.latitude : _toLatLng.latitude,
+        _fromLatLng.longitude < _toLatLng.longitude ? _fromLatLng.longitude : _toLatLng.longitude,
+      ),
+      northeast: LatLng(
+        _fromLatLng.latitude > _toLatLng.latitude ? _fromLatLng.latitude : _toLatLng.latitude,
+        _fromLatLng.longitude > _toLatLng.longitude ? _fromLatLng.longitude : _toLatLng.longitude,
+      ),
+    );
+    _mapController?.animateCamera(CameraUpdate.newLatLngBounds(bounds, 70));
   }
 
   @override
   Widget build(BuildContext context) {
-    // --- START OF DYNAMIC BUILD LOGIC ---
     final Set<Marker> markers = {
       Marker(
         markerId: const MarkerId('from'),
@@ -146,92 +138,83 @@ class _RouteSuggestionsScreenState extends State<RouteSuggestionsScreen> {
     final Polyline routePolyline = Polyline(
       polylineId: const PolylineId('route'),
       points: [_fromLatLng, _toLatLng],
-      color: Colors.blue,
-      width: 4,
+      color: Colors.blue.withOpacity(0.7),
+      width: 5,
     );
-
-    // Calculate map center for current route
-    final LatLng mapCenter = LatLng(
-      (_fromLatLng.latitude + _toLatLng.latitude) / 2,
-      (_fromLatLng.longitude + _toLatLng.longitude) / 2,
-    );
-    // --- END OF DYNAMIC BUILD LOGIC ---
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Route Suggestions'),
-        leading: BackButton(onPressed: () => Navigator.pop(context)),
         actions: [
           IconButton(
             icon: const Icon(Icons.accessibility),
-            onPressed: () {
-              setState(() {
-                accessibilityMode = !accessibilityMode;
-              });
-            },
+            onPressed: () => setState(() => accessibilityMode = !accessibilityMode),
             color: accessibilityMode ? Colors.blue : Colors.grey,
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('From $fromLocation', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-            Text('To $toLocation', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 10),
-            Text('Expected duration: ${liveRoute['time'] ?? 'N/A'}', style: const TextStyle(color: Colors.grey)),
-            const SizedBox(height: 10),
+      // ✅ Wrap with SingleChildScrollView to prevent bottom overflow
+      body: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('From: $fromLocation', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              Text('To: $toLocation', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              Text('Estimated Travel: ${liveRoute['time']}', style: const TextStyle(color: Colors.grey)),
+              const SizedBox(height: 16),
 
-            // ✅ Google Map section
-            Expanded(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: GoogleMap(
-                  onMapCreated: _onMapCreated,
-                  initialCameraPosition: CameraPosition(
-                    target: mapCenter, // Use dynamic center
-                    zoom: 8, // Zoom level adjusted for city-to-city routes
+              // ✅ Fixed Height for the Map
+              SizedBox(
+                height: MediaQuery.of(context).size.height * 0.4, // 40% of screen height
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: GoogleMap(
+                    onMapCreated: _onMapCreated,
+                    initialCameraPosition: CameraPosition(target: _fromLatLng, zoom: 10),
+                    markers: markers,
+                    polylines: {routePolyline},
+                    myLocationEnabled: true,
+                    zoomControlsEnabled: false, // Cleaner UI
                   ),
-                  markers: markers,
-                  polylines: {routePolyline},
-                  myLocationEnabled: true,
-                  zoomControlsEnabled: true,
-                  compassEnabled: true,
                 ),
               ),
-            ),
 
-            const Divider(),
-            // --- UPDATED TICKET/ROUTE SUGGESTION SECTION ---
-            ListTile(
-              leading: Icon(
-                liveRoute['icon'] == 'directions_bus' ? Icons.directions_bus : Icons.train,
-                color: liveRoute['icon'] == 'directions_bus' ? Colors.green : Colors.blue,
+              const SizedBox(height: 20),
+              const Text("Best Suggestion", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              const Divider(),
+
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: CircleAvatar(
+                  backgroundColor: Colors.blue.shade50,
+                  child: Icon(
+                    liveRoute['icon'] == 'directions_bus' ? Icons.directions_bus : Icons.train,
+                    color: Colors.blue.shade700,
+                  ),
+                ),
+                title: Text('${liveRoute['mode']}: ${liveRoute['suggestion']}'),
+                subtitle: Text('ID: ${liveRoute['busNo']} • Price: ${liveRoute['price']}'),
+                trailing: const Icon(Icons.chevron_right),
               ),
-              title: Text('${liveRoute['mode']}: ${liveRoute['suggestion']}'),
-              subtitle: Text(
-                'ID/Number: ${liveRoute['busNo'] ?? 'N/A'} | Price: ${liveRoute['price'] ?? 'N/A'}',
-                style: const TextStyle(fontWeight: FontWeight.bold),
+
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: () => Navigator.pushNamed(context, '/profile'),
+                style: ElevatedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 56),
+                  backgroundColor: Colors.blue.shade800,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: const Text('Req Bid / Book Now', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               ),
-              trailing: Text('Duration: ${liveRoute['time'] ?? 'N/A'}'),
-            ),
-            // --- END UPDATED SECTION ---
-            const SizedBox(height: 10),
-            ElevatedButton(
-              onPressed: () {
-                // This would typically navigate to a bidding/booking page
-                Navigator.pushNamed(context, '/profile');
-              },
-              style: ElevatedButton.styleFrom(
-                minimumSize: const Size(double.infinity, 50),
-                backgroundColor: Colors.blue.shade700,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Req Bid / Book Now'),
-            ),
-          ],
+              // Extra space at bottom to ensure scrolling feels comfortable
+              const SizedBox(height: 40),
+            ],
+          ),
         ),
       ),
     );
