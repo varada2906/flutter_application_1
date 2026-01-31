@@ -15,10 +15,8 @@ class SearchScreen extends StatefulWidget {
 
 class _SearchScreenState extends State<SearchScreen> {
   static const double _navHeight = 75.0;
-  final TextEditingController fromController =
-      TextEditingController(text: "Pune");
-  final TextEditingController toController =
-      TextEditingController(text: "Mumbai");
+  final TextEditingController fromController = TextEditingController();
+  final TextEditingController toController = TextEditingController();
   DateTime selectedDateTime = DateTime.now();
 
   int _page = 1;
@@ -54,8 +52,8 @@ class _SearchScreenState extends State<SearchScreen> {
             'buses': data['buses']?.toString() ?? '0',
             'type': data['type'] ?? 'Electric',
             'price': data['price'] ?? '₹500',
-            'from': data['from'] ?? 'Pune',
-            'to': data['to'] ?? 'Mumbai',
+            'from': data['from'] ?? '',
+            'to': data['to'] ?? '',
             'rating': data['rating']?.toDouble() ?? 4.5,
             'stops': data['stops'] ?? 1,
           };
@@ -262,6 +260,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
   Widget _buildSearchCard() {
     final (buttonText, buttonIcon) = _getModeDetails();
+    final bool isSearchEnabled = fromController.text.isNotEmpty && toController.text.isNotEmpty;
 
     return Card(
       elevation: 4,
@@ -306,9 +305,16 @@ class _SearchScreenState extends State<SearchScreen> {
                           children: [
                             const Icon(Icons.circle, size: 10, color: Colors.blue),
                             const SizedBox(width: 8),
-                            Text(
-                              fromController.text,
-                              style: const TextStyle(fontSize: 16),
+                            Expanded(
+                              child: TextField(
+                                controller: fromController,
+                                decoration: const InputDecoration.collapsed(
+                                  hintText: "Enter departure city",
+                                  hintStyle: TextStyle(color: Colors.grey),
+                                ),
+                                style: const TextStyle(fontSize: 16),
+                                onChanged: (_) => setState(() {}),
+                              ),
                             ),
                           ],
                         ),
@@ -347,9 +353,16 @@ class _SearchScreenState extends State<SearchScreen> {
                           children: [
                             const Icon(Icons.location_on, size: 18, color: Colors.red),
                             const SizedBox(width: 8),
-                            Text(
-                              toController.text,
-                              style: const TextStyle(fontSize: 16),
+                            Expanded(
+                              child: TextField(
+                                controller: toController,
+                                decoration: const InputDecoration.collapsed(
+                                  hintText: "Enter destination city",
+                                  hintStyle: TextStyle(color: Colors.grey),
+                                ),
+                                style: const TextStyle(fontSize: 16),
+                                onChanged: (_) => setState(() {}),
+                              ),
                             ),
                           ],
                         ),
@@ -394,7 +407,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
             // Search Button
             ElevatedButton.icon(
-              onPressed: () {
+              onPressed: isSearchEnabled ? () {
                 // Add notifications
                 _addNewTicketNotification(fromController.text, toController.text);
                 _addNewDestinationBusNotification(fromController.text, toController.text);
@@ -406,14 +419,14 @@ class _SearchScreenState extends State<SearchScreen> {
                   arguments:
                       RouteSuggestionArgs(fromController.text, toController.text),
                 );
-              },
+              } : null,
               icon: Icon(buttonIcon, size: 24),
               label: Text(
                 buttonText,
                 style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue.shade700,
+                backgroundColor: isSearchEnabled ? Colors.blue.shade700 : Colors.grey.shade400,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
@@ -465,7 +478,7 @@ class _SearchScreenState extends State<SearchScreen> {
       // Add Firestore routes (if available)
       ..._firestoreBuses.take(4).map((bus) {
         return {
-          'city1': bus['from'] ?? 'Pune',
+          'city1': bus['from'] ?? 'City',
           'city2': bus['to'] ?? 'Destination',
           'rating': bus['rating'] ?? 4.5,
           'price': bus['price'] ?? '₹500',
@@ -482,7 +495,7 @@ class _SearchScreenState extends State<SearchScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             const Text(
-              "Popular Routes from Pune",
+              "Popular Routes",
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             TextButton(
@@ -498,67 +511,75 @@ class _SearchScreenState extends State<SearchScreen> {
           scrollDirection: Axis.horizontal,
           child: Row(
             children: allRoutes.take(8).map((route) {
-              return Container(
-                width: 150,
-                margin: const EdgeInsets.only(right: 12),
-                child: Card(
-                  elevation: 2,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  color: route['isFirestore'] ? Colors.blue.shade50 : null,
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(4),
-                              decoration: BoxDecoration(
-                                color: Colors.yellow.shade100,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(Icons.star, color: Colors.orange, size: 14),
-                                  const SizedBox(width: 4),
-                                  Text(route['rating'].toStringAsFixed(1), 
-                                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                                ],
-                              ),
-                            ),
-                            if (route['isFirestore'])
+              return GestureDetector(
+                onTap: () {
+                  setState(() {
+                    fromController.text = route['city1'];
+                    toController.text = route['city2'];
+                  });
+                },
+                child: Container(
+                  width: 150,
+                  margin: const EdgeInsets.only(right: 12),
+                  child: Card(
+                    elevation: 2,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    color: route['isFirestore'] ? Colors.blue.shade50 : null,
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
                               Container(
-                                padding: const EdgeInsets.all(2),
+                                padding: const EdgeInsets.all(4),
                                 decoration: BoxDecoration(
-                                  color: Colors.green.shade100,
-                                  borderRadius: BorderRadius.circular(4),
+                                  color: Colors.yellow.shade100,
+                                  borderRadius: BorderRadius.circular(8),
                                 ),
-                                child: const Text(
-                                  "Live",
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.green,
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.star, color: Colors.orange, size: 14),
+                                    const SizedBox(width: 4),
+                                    Text(route['rating'].toStringAsFixed(1), 
+                                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                  ],
+                                ),
+                              ),
+                              if (route['isFirestore'])
+                                Container(
+                                  padding: const EdgeInsets.all(2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.green.shade100,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: const Text(
+                                    "Live",
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.green,
+                                    ),
                                   ),
                                 ),
-                              ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text("${route['city1']} - ${route['city2']}",
-                            style: const TextStyle(fontWeight: FontWeight.bold)),
-                        Text("${route['stops']} stops", 
-                            style: const TextStyle(color: Colors.grey, fontSize: 12)),
-                        const SizedBox(height: 8),
-                        Text(route['price'],
-                            style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black)),
-                      ],
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text("${route['city1']} - ${route['city2']}",
+                              style: const TextStyle(fontWeight: FontWeight.bold)),
+                          Text("${route['stops']} stops", 
+                              style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                          const SizedBox(height: 8),
+                          Text(route['price'],
+                              style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.black)),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -622,7 +643,7 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
-  // UPDATED WIDGET: Build the dynamic recommended destinations list for Pune
+  // UPDATED WIDGET: Build the dynamic recommended destinations list
   Widget _buildRecommendedRoutes() {
     late String titleText;
     late List<Map<String, dynamic>> routeData;
@@ -632,15 +653,15 @@ class _SearchScreenState extends State<SearchScreen> {
     // Define different sets of recommendations based on the selected mode
     switch (_selectedMode) {
       case TransportMode.bus:
-        titleText = "Top Bus Routes from Pune 🚌";
+        titleText = "Top Bus Routes 🚌";
         modeIcon = Icons.directions_bus;
         iconColor = Colors.green.shade700;
         
         // Combine hardcoded routes with Firestore routes
         final hardcodedRoutes = [
-          {"title": "Pune to Shirdi", "subtitle": "Pilgrimage special buses", "isFirestore": false},
-          {"title": "Pune to Kolhapur", "subtitle": "Frequent state transport", "isFirestore": false},
-          {"title": "Pune to Hyderabad", "subtitle": "Overnight sleeper service", "isFirestore": false},
+          {"title": "Delhi to Agra", "subtitle": "Express buses, 3 hours", "isFirestore": false},
+          {"title": "Bangalore to Chennai", "subtitle": "Frequent AC services", "isFirestore": false},
+          {"title": "Mumbai to Goa", "subtitle": "Overnight sleeper service", "isFirestore": false},
         ];
         
         // Get Firestore routes
@@ -657,68 +678,69 @@ class _SearchScreenState extends State<SearchScreen> {
         break;
         
       case TransportMode.train:
-        titleText = "Top Train Routes from Pune 🚆";
+        titleText = "Top Train Routes 🚆";
         modeIcon = Icons.train;
         iconColor = Colors.blue.shade700;
         routeData = [
-          {"title": "Pune to Nagpur", "subtitle": "Maharastra Express available", "isFirestore": false},
-          {"title": "Pune to Delhi", "subtitle": "High-speed Rajdhani", "isFirestore": false},
-          {"title": "Pune to Chennai", "subtitle": "South India connectivity", "isFirestore": false},
+          {"title": "Delhi to Mumbai", "subtitle": "Rajdhani Express available", "isFirestore": false},
+          {"title": "Kolkata to Delhi", "subtitle": "High-speed Duronto", "isFirestore": false},
+          {"title": "Chennai to Hyderabad", "subtitle": "South India connectivity", "isFirestore": false},
         ];
         break;
     }
 
     // Build the list of routeOptionItem widgets
     List<Widget> routeItems = routeData.map((data) {
-      return Card(
-        margin: const EdgeInsets.symmetric(vertical: 8),
-        elevation: 2,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        color: data['isFirestore'] == true ? Colors.blue.shade50 : null,
-        child: ListTile(
-          leading: CircleAvatar(
-            backgroundColor: iconColor.withOpacity(0.15),
-            child: Icon(modeIcon, color: iconColor),
-          ),
-          title: Row(
-            children: [
-              Text(
-                data['title']!,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 16,
-                ),
-              ),
-              if (data['isFirestore'] == true)
-                Container(
-                  margin: const EdgeInsets.only(left: 8),
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: Colors.green.shade100,
-                    borderRadius: BorderRadius.circular(4),
+      return GestureDetector(
+        onTap: () {
+          final parts = data['title']!.split(' to ');
+          if (parts.length == 2) {
+            setState(() {
+              fromController.text = parts[0];
+              toController.text = parts[1];
+            });
+          }
+        },
+        child: Card(
+          margin: const EdgeInsets.symmetric(vertical: 8),
+          elevation: 2,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          color: data['isFirestore'] == true ? Colors.blue.shade50 : null,
+          child: ListTile(
+            leading: CircleAvatar(
+              backgroundColor: iconColor.withOpacity(0.15),
+              child: Icon(modeIcon, color: iconColor),
+            ),
+            title: Row(
+              children: [
+                Text(
+                  data['title']!,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 16,
                   ),
-                  child: const Text(
-                    "Live",
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.green,
+                ),
+                if (data['isFirestore'] == true)
+                  Container(
+                    margin: const EdgeInsets.only(left: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade100,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Text(
+                      "Live",
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.green,
+                      ),
                     ),
                   ),
-                ),
-            ],
+              ],
+            ),
+            subtitle: Text(data['subtitle']!),
           ),
-          subtitle: Text(data['subtitle']!),
-          onTap: () {
-            final parts = data['title']!.split(' to ');
-            if (parts.length == 2) {
-              Navigator.pushNamed(
-                context,
-                '/routeSuggestions',
-                arguments: RouteSuggestionArgs(parts[0], parts[1]),
-              );
-            }
-          },
         ),
       );
     }).toList();
@@ -737,30 +759,30 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
-  // --- MAIN BUILD METHOD (FIXED VERSION) ---
+  // --- MAIN BUILD METHOD ---
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
       
        bottomNavigationBar: SafeArea(
-  top: false,
-  child: CurvedNavigationBar(
-    key: _bottomNavigationKey,
-    index: 1,
-    height: 70, 
-    backgroundColor: Colors.transparent,
-    color: Colors.blue.shade600,
-    buttonBackgroundColor: Colors.blue.shade800,
-    items: const [
-      Icon(Icons.person, size: 30, color: Colors.white),
-      Icon(Icons.search, size: 30, color: Colors.white),
-      Icon(Icons.accessibility_new, size: 30, color: Colors.white),
-      Icon(Icons.chat_bubble_outline, size: 30, color: Colors.white),
-    ],
-    onTap: handleNavTap,
-  ),
-),
+        top: false,
+        child: CurvedNavigationBar(
+          key: _bottomNavigationKey,
+          index: 1,
+          height: 70, 
+          backgroundColor: Colors.transparent,
+          color: Colors.blue.shade600,
+          buttonBackgroundColor: Colors.blue.shade800,
+          items: const [
+            Icon(Icons.person, size: 30, color: Colors.white),
+            Icon(Icons.search, size: 30, color: Colors.white),
+            Icon(Icons.accessibility_new, size: 30, color: Colors.white),
+            Icon(Icons.chat_bubble_outline, size: 30, color: Colors.white),
+          ],
+          onTap: handleNavTap,
+        ),
+      ),
 
       body: SafeArea(
         bottom: false,
