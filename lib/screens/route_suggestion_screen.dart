@@ -3,7 +3,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_application_1/models/route_suggstion_args.dart';
 
-// Enum for route types
+
 enum RouteType { cheapest, fastest, mixed }
 
 // Data model for route options
@@ -85,6 +85,25 @@ class _RouteSuggestionsScreenState extends State<RouteSuggestionsScreen> {
     return _locationCoords[key] ?? _locationCoords["Default"]!;
   }
 
+  // Function to check if train is available between locations
+  bool _isTrainAvailable(String from, String to) {
+    final fromLower = from.toLowerCase();
+    final toLower = to.toLowerCase();
+    
+    // List of cities where train is available
+    final trainCities = {
+      "pune", "mumbai", "delhi", "chennai", "kolkata", "bangalore", 
+      "hyderabad", "nagpur", "nashik", "goa", "kolhapur", "shirdi",
+      "agra"
+    };
+    
+    final fromHasTrain = trainCities.any((city) => fromLower.contains(city));
+    final toHasTrain = trainCities.any((city) => toLower.contains(city));
+    
+    // Train is available only if both cities have train connectivity
+    return fromHasTrain && toHasTrain;
+  }
+
   // Generate route options based on locations
   void _generateRouteOptions(String from, String to) {
     _routeOptions.clear();
@@ -93,8 +112,11 @@ class _RouteSuggestionsScreenState extends State<RouteSuggestionsScreen> {
     final fromLower = from.toLowerCase();
     final toLower = to.toLowerCase();
     
+    // Check if train is available for this route
+    final trainAvailable = _isTrainAvailable(from, to);
+    
     if (fromLower.contains("swargate") && toLower.contains("hinjawadi")) {
-      // Example routes for Swargate to Hinjawadi (from your image)
+      // Swargate to Hinjawadi - No train available (local city route)
       _routeOptions.addAll([
         RouteOption(
           type: RouteType.cheapest,
@@ -137,6 +159,7 @@ class _RouteSuggestionsScreenState extends State<RouteSuggestionsScreen> {
         ),
       ]);
     } else if (fromLower.contains("pune") && toLower.contains("mumbai")) {
+      // Pune to Mumbai - Train is available
       _routeOptions.addAll([
         RouteOption(
           type: RouteType.cheapest,
@@ -179,6 +202,7 @@ class _RouteSuggestionsScreenState extends State<RouteSuggestionsScreen> {
         ),
       ]);
     } else if (fromLower.contains("pune") && toLower.contains("nashik")) {
+      // Pune to Nashik - Train is available
       _routeOptions.addAll([
         RouteOption(
           type: RouteType.cheapest,
@@ -195,32 +219,33 @@ class _RouteSuggestionsScreenState extends State<RouteSuggestionsScreen> {
         ),
         RouteOption(
           type: RouteType.fastest,
-          title: "CAR POOL",
+          title: trainAvailable ? "TRAIN + BUS" : "CAR POOL",
           subtitle: "Fastest route",
-          icon: Icons.directions_car,
+          icon: trainAvailable ? Icons.train : Icons.directions_car,
           iconColor: Colors.blue.shade700,
-          travelTime: "3h 30m",
-          price: "₹600",
-          details: "Shared cab via Mumbai-Pune Expressway",
-          stops: 2,
-          mode: "Car Pool",
-          rating: 4.6,
+          travelTime: trainAvailable ? "3h 30m" : "3h 30m",
+          price: trainAvailable ? "₹480" : "₹600",
+          details: trainAvailable ? "Train to Igatpuri + Local bus" : "Shared cab via Mumbai-Pune Expressway",
+          stops: trainAvailable ? 6 : 2,
+          mode: trainAvailable ? "Mixed Transport" : "Car Pool",
+          rating: trainAvailable ? 4.4 : 4.6,
         ),
         RouteOption(
           type: RouteType.mixed,
-          title: "TRAIN + BUS",
+          title: trainAvailable ? "CAR + LOCAL BUS" : "BUS + METRO",
           subtitle: "Comfortable route",
-          icon: Icons.train,
+          icon: trainAvailable ? Icons.directions_car : Icons.directions,
           iconColor: Colors.orange.shade700,
-          travelTime: "4h",
-          price: "₹480",
-          details: "Train to Igatpuri + Local bus",
-          stops: 6,
-          mode: "Mixed Transport",
-          rating: 4.4,
+          travelTime: trainAvailable ? "4h" : "3h",
+          price: trainAvailable ? "₹550" : "₹500",
+          details: trainAvailable ? "Car to station + Local transport" : "Combination of transport modes",
+          stops: trainAvailable ? 4 : 6,
+          mode: trainAvailable ? "Mixed Transport" : "Multi-modal",
+          rating: trainAvailable ? 4.3 : 4.2,
         ),
       ]);
     } else if (fromLower.contains("pune") && toLower.contains("bangalore")) {
+      // Pune to Bangalore - Train is available
       _routeOptions.addAll([
         RouteOption(
           type: RouteType.cheapest,
@@ -250,19 +275,20 @@ class _RouteSuggestionsScreenState extends State<RouteSuggestionsScreen> {
         ),
         RouteOption(
           type: RouteType.mixed,
-          title: "TRAIN + METRO",
-          subtitle: "Scenic route",
-          icon: Icons.train,
+          title: trainAvailable ? "TRAIN + METRO" : "BUS + METRO",
+          subtitle: trainAvailable ? "Scenic route" : "Eco-friendly route",
+          icon: trainAvailable ? Icons.train : Icons.directions,
           iconColor: Colors.purple.shade700,
-          travelTime: "14h",
-          price: "₹1800",
-          details: "Train + Bangalore metro to destination",
-          stops: 8,
-          mode: "Mixed Transport",
-          rating: 4.2,
+          travelTime: trainAvailable ? "14h" : "13h",
+          price: trainAvailable ? "₹1800" : "₹1500",
+          details: trainAvailable ? "Train + Bangalore metro to destination" : "Overnight bus + Local transport",
+          stops: trainAvailable ? 8 : 6,
+          mode: trainAvailable ? "Mixed Transport" : "Multi-modal",
+          rating: trainAvailable ? 4.2 : 4.1,
         ),
       ]);
     } else if (fromLower.contains("delhi") && toLower.contains("agra")) {
+      // Delhi to Agra - Train is available
       _routeOptions.addAll([
         RouteOption(
           type: RouteType.cheapest,
@@ -305,7 +331,7 @@ class _RouteSuggestionsScreenState extends State<RouteSuggestionsScreen> {
         ),
       ]);
     } else {
-      // Default routes for any location
+      // Default routes for any location - Check train availability
       _routeOptions.addAll([
         RouteOption(
           type: RouteType.cheapest,
@@ -322,28 +348,28 @@ class _RouteSuggestionsScreenState extends State<RouteSuggestionsScreen> {
         ),
         RouteOption(
           type: RouteType.fastest,
-          title: "TRAIN",
+          title: trainAvailable ? "TRAIN" : "CAR POOL",
           subtitle: "Fastest route",
-          icon: Icons.train,
+          icon: trainAvailable ? Icons.train : Icons.directions_car,
           iconColor: Colors.blue.shade700,
-          travelTime: "1h 45m",
-          price: "₹550",
-          details: "Express train service",
-          stops: 3,
-          mode: "Train",
-          rating: 4.5,
+          travelTime: trainAvailable ? "1h 45m" : "1h 30m",
+          price: trainAvailable ? "₹550" : "₹800",
+          details: trainAvailable ? "Express train service" : "Shared cab service",
+          stops: trainAvailable ? 3 : 1,
+          mode: trainAvailable ? "Train" : "Car Pool",
+          rating: trainAvailable ? 4.5 : 4.6,
         ),
         RouteOption(
           type: RouteType.mixed,
-          title: "BUS + METRO",
+          title: trainAvailable ? "BUS + TRAIN" : "BUS + METRO",
           subtitle: "Eco-friendly route",
-          icon: Icons.directions,
+          icon: trainAvailable ? Icons.transfer_within_a_station : Icons.directions,
           iconColor: Colors.orange.shade700,
-          travelTime: "2h 15m",
-          price: "₹420",
-          details: "Combination of transport modes",
-          stops: 8,
-          mode: "Multi-modal",
+          travelTime: trainAvailable ? "2h 15m" : "2h",
+          price: trainAvailable ? "₹420" : "₹400",
+          details: trainAvailable ? "Bus to station + Train journey" : "Combination of transport modes",
+          stops: trainAvailable ? 8 : 6,
+          mode: trainAvailable ? "Multi-modal" : "Multi-modal",
           rating: 4.2,
         ),
       ]);

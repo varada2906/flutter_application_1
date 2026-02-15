@@ -529,7 +529,7 @@ class _MetroSearchScreenState extends State<MetroSearchScreen> {
             ),
           ),
 
-          // Metro details table or loading/empty state
+          // Metro details table or loading/empty state - FIXED WITH HORIZONTAL SCROLL
           Expanded(
             child: metroList.isEmpty
                 ? Center(
@@ -575,136 +575,139 @@ class _MetroSearchScreenState extends State<MetroSearchScreen> {
                 : Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16.0),
                     child: SingleChildScrollView(
-                      child: DataTable(
-                        border: TableBorder.all(color: Colors.grey.shade300),
-                        headingRowColor: MaterialStateProperty.all(Colors.purple.shade100),
-                        columns: const [
-                          DataColumn(label: Text("Metro ID")),
-                          DataColumn(label: Text("Line")),
-                          DataColumn(label: Text("Stations")),
-                          DataColumn(label: Text("Trains")),
-                          DataColumn(label: Text("Frequency")),
-                          DataColumn(label: Text("Duration")),
-                          DataColumn(label: Text("Fare")),
-                          DataColumn(label: Text("First Train")),
-                          DataColumn(label: Text("Last Train")),
-                          DataColumn(label: Text("Actions")),
-                        ],
-                        rows: metroList.asMap().entries.map((entry) {
-                          int index = entry.key;
-                          Map<String, dynamic> metro = entry.value;
-                          return DataRow(
-                            color: MaterialStateProperty.resolveWith<Color?>(
-                              (Set<MaterialState> states) {
-                                return index % 2 == 0
-                                    ? Colors.grey.shade50
-                                    : Colors.white;
-                              },
-                            ),
-                            cells: [
-                              DataCell(
-                                Container(
-                                  padding: const EdgeInsets.all(6),
-                                  decoration: BoxDecoration(
-                                    color: Colors.purple.shade50,
-                                    borderRadius: BorderRadius.circular(6),
-                                    border: Border.all(color: Colors.purple.shade100),
-                                  ),
-                                  child: Text(
-                                    metro["metroId"] ?? 'N/A',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.purple.shade700,
+                      scrollDirection: Axis.horizontal, // THIS FIXES THE OVERFLOW ERROR
+                      child: SingleChildScrollView(
+                        child: DataTable(
+                          border: TableBorder.all(color: Colors.grey.shade300),
+                          headingRowColor: MaterialStateProperty.all(Colors.purple.shade100),
+                          columns: const [
+                            DataColumn(label: Text("Metro ID")),
+                            DataColumn(label: Text("Line")),
+                            DataColumn(label: Text("Stations")),
+                            DataColumn(label: Text("Trains")),
+                            DataColumn(label: Text("Frequency")),
+                            DataColumn(label: Text("Duration")),
+                            DataColumn(label: Text("Fare")),
+                            DataColumn(label: Text("First Train")),
+                            DataColumn(label: Text("Last Train")),
+                            DataColumn(label: Text("Actions")),
+                          ],
+                          rows: metroList.asMap().entries.map((entry) {
+                            int index = entry.key;
+                            Map<String, dynamic> metro = entry.value;
+                            return DataRow(
+                              color: MaterialStateProperty.resolveWith<Color?>(
+                                (Set<MaterialState> states) {
+                                  return index % 2 == 0
+                                      ? Colors.grey.shade50
+                                      : Colors.white;
+                                },
+                              ),
+                              cells: [
+                                DataCell(
+                                  Container(
+                                    padding: const EdgeInsets.all(6),
+                                    decoration: BoxDecoration(
+                                      color: Colors.purple.shade50,
+                                      borderRadius: BorderRadius.circular(6),
+                                      border: Border.all(color: Colors.purple.shade100),
+                                    ),
+                                    child: Text(
+                                      metro["metroId"] ?? 'N/A',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.purple.shade700,
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                              DataCell(
-                                Text(
-                                  metro["line"] ?? 'N/A',
-                                  style: const TextStyle(fontWeight: FontWeight.w600),
-                                ),
-                              ),
-                              DataCell(
-                                Text(
-                                  metro["stations"] ?? 'N/A',
-                                  style: const TextStyle(color: Color.fromARGB(255, 84, 83, 83)),
-                                ),
-                              ),
-                              DataCell(
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 6,
+                                DataCell(
+                                  Text(
+                                    metro["line"] ?? 'N/A',
+                                    style: const TextStyle(fontWeight: FontWeight.w600),
                                   ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.orange.shade50,
-                                    borderRadius: BorderRadius.circular(16),
-                                    border: Border.all(color: Colors.orange.shade200),
+                                ),
+                                DataCell(
+                                  Text(
+                                    metro["stations"] ?? 'N/A',
+                                    style: const TextStyle(color: Color.fromARGB(255, 84, 83, 83)),
                                   ),
-                                  child: Row(
+                                ),
+                                DataCell(
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 6,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.orange.shade50,
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(color: Colors.orange.shade200),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.train,
+                                          size: 14,
+                                          color: Colors.orange.shade700,
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          metro["trains"]?.toString() ?? '0',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.orange.shade800,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                DataCell(Text(metro["frequency"] ?? 'N/A')),
+                                DataCell(Text(metro["duration"] ?? 'N/A')),
+                                DataCell(
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: Colors.green.shade50,
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(color: Colors.green.shade200),
+                                    ),
+                                    child: Text(
+                                      metro["fare"] ?? 'N/A',
+                                      style: TextStyle(
+                                        color: Colors.green.shade700,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                DataCell(Text(metro["firstTrain"] ?? 'N/A')),
+                                DataCell(Text(metro["lastTrain"] ?? 'N/A')),
+                                DataCell(
+                                  Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      Icon(
-                                        Icons.train,
-                                        size: 14,
-                                        color: Colors.orange.shade700,
+                                      IconButton(
+                                        icon: const Icon(Icons.edit, size: 20),
+                                        color: Colors.blue.shade600,
+                                        onPressed: () => _editMetro(index),
+                                        tooltip: 'Edit',
                                       ),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        metro["trains"]?.toString() ?? '0',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.orange.shade800,
-                                        ),
+                                      IconButton(
+                                        icon: const Icon(Icons.delete, size: 20),
+                                        color: Colors.red.shade600,
+                                        onPressed: () => _deleteMetro(index),
+                                        tooltip: 'Delete',
                                       ),
                                     ],
                                   ),
                                 ),
-                              ),
-                              DataCell(Text(metro["frequency"] ?? 'N/A')),
-                              DataCell(Text(metro["duration"] ?? 'N/A')),
-                              DataCell(
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: Colors.green.shade50,
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(color: Colors.green.shade200),
-                                  ),
-                                  child: Text(
-                                    metro["fare"] ?? 'N/A',
-                                    style: TextStyle(
-                                      color: Colors.green.shade700,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              DataCell(Text(metro["firstTrain"] ?? 'N/A')),
-                              DataCell(Text(metro["lastTrain"] ?? 'N/A')),
-                              DataCell(
-                                Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    IconButton(
-                                      icon: const Icon(Icons.edit, size: 20),
-                                      color: Colors.blue.shade600,
-                                      onPressed: () => _editMetro(index),
-                                      tooltip: 'Edit',
-                                    ),
-                                    IconButton(
-                                      icon: const Icon(Icons.delete, size: 20),
-                                      color: Colors.red.shade600,
-                                      onPressed: () => _deleteMetro(index),
-                                      tooltip: 'Delete',
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          );
-                        }).toList(),
+                              ],
+                            );
+                          }).toList(),
+                        ),
                       ),
                     ),
                   ),

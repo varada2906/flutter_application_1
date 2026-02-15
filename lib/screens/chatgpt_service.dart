@@ -2,9 +2,8 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class ChatGPTService { // Class name is ChatGPTService
-  // ⚠️ NOTE: Replace with your actual, secure API Key
-  static const String apiKey = "AIzaSyBOz1313X3SPz3oyWg_0tW6PxBUYiTYOrI";
-  static const String modelName = "gemini-2.0-flash";
+  static const String apiKey = "AIzaSyDeX7BpEbnVivyX1XLVoRYLJpDEJsig06s";
+  static const String modelName = "gemini-flash-latest";
   static const int timeoutSeconds = 30;
 
   // Smart Pune Commute-only rules

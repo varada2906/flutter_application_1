@@ -67,20 +67,26 @@ class _ChatScreenState extends State<ChatScreen> {
           _buildSuggestionBar(),
           
           // 2. Chat Messages Area (Expanded to fill space)
-          Expanded(
-            child: ListView.builder(
-              reverse: true, // Newest messages at the bottom
-              padding: EdgeInsets.symmetric(horizontal: 15, vertical: 10),
-              itemCount: _messages.length + (_isLoading ? 1 : 0),
-              itemBuilder: (context, index) {
-                if (index == 0 && _isLoading) {
-                  return _buildLoadingMessage();
-                }
-                final msg = _messages[_messages.length - 1 - index];
-                return _buildMessageBubble(msg);
-              },
-            ),
-          ),
+         Expanded(
+  child: ListView.builder(
+    reverse: true,
+    padding: EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+    itemCount: _messages.length + (_isLoading ? 1 : 0),
+    itemBuilder: (context, index) {
+      if (index == 0 && _isLoading) {
+        return _buildLoadingMessage();
+      }
+      
+      // 🟢 JUST ADD THESE 3 LINES HERE
+      if (_messages.isEmpty) {
+        return SizedBox.shrink();
+      }
+      
+      final msg = _messages[_messages.length - 1 - index];
+      return _buildMessageBubble(msg);
+    },
+  ),
+),
           
           // 3. Fixed Input Area (Always visible)
           _buildInputArea(),
