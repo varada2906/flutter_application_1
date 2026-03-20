@@ -1,12 +1,14 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
-class ChatGPTService { // Class name is ChatGPTService
-  static const String apiKey = "AIzaSyDeX7BpEbnVivyX1XLVoRYLJpDEJsig06s";
-  static const String modelName = "gemini-flash-latest";
+class ChatGPTService {
+  // तुझी API key
+  static const String apiKey = "AIzaSyAQNd0salc_tvDJPZ2f6KrJfTktKIKoAa8";
   static const int timeoutSeconds = 30;
+  
+  // ✅ फक्त एक model (हे try कर)
+  static const String modelName = "gemini-2.5-flash";
 
-  // Smart Pune Commute-only rules
   static const String commuteSystemInstruction = """
 You are a Smart Pune Commute Expert. Your knowledge is STRICTLY limited to commute, traffic, and public transport topics related to Pune, Maharashtra, India.
 
@@ -33,65 +35,64 @@ RESPONSE RULES:
 3. If not about Pune commute/travel: Say "🟦 I specialize only in Pune and PCMC commute information. How can I help you with your journey today?"
 """;
 
+  // ✅ साधा आणि सोपा function
   static Future<String> getCommuteResponse(String userInput) async {
     try {
+      // v1 API endpoint
       final url = Uri.parse(
-        "https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent?key=$apiKey",
+        "https://generativelanguage.googleapis.com/v1/models/$modelName:generateContent?key=$apiKey",
       );
-
+      
+      print("📤 Sending request...");
+      
       final body = jsonEncode({
         "contents": [
           {
-            "role": "user",
             "parts": [
               {"text": "$commuteSystemInstruction\n\nUser: $userInput"}
             ]
           }
         ],
-        "generationConfig": { // CORRECTED: This is the correct parameter name for the Gemini API
-          "temperature": 0.5, 
-          "topK": 40,
-          "topP": 0.95,
-          "maxOutputTokens": 1024
+        "generationConfig": {
+          "temperature": 0.5,
+          "maxOutputTokens": 1024,
         }
       });
 
       final response = await http
           .post(
             url,
-            headers: {"Content-Type": "application/json; charset=UTF-8"},
+            headers: {"Content-Type": "application/json"},
             body: body,
           )
           .timeout(const Duration(seconds: timeoutSeconds));
 
+      print("📥 Status: ${response.statusCode}");
+      
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        if (data.containsKey('candidates') &&
-            data['candidates'] != null &&
-            data['candidates'].isNotEmpty) {
-          final text =
-              data['candidates'][0]['content']['parts'][0]['text'].trim();
-          return text.isNotEmpty
-              ? text
-              : "🟦 Oops! The Commute AI couldn't formulate a route for that. Try a specific landmark or area in Pune.";
-        } else {
-          // Handle cases where AI response is blocked/empty
-          return "🟦 The Smart Commute assistant didn't return any response. Please try again later.";
-        }
+        String text = data['candidates'][0]['content']['parts'][0]['text'];
+        return text.startsWith('🟦') ? text : '🟦 $text';
       } else {
-        print("❌ HTTP Error: ${response.statusCode}");
-        print(response.body);
-        return "🟦 The Pune Commute service is currently unavailable. Please check your network connection.";
+        print("❌ Error: ${response.body}");
+        
+        // सोपे error messages
+        if (response.statusCode == 404) {
+          return "🟦 Model सध्या उपलब्ध नाही. कृपया नंतर प्रयत्न करा.";
+        } else if (response.statusCode == 403) {
+          return "🟦 API key चा प्रॉब्लेम आहे. नवीन key बनवा.";
+        } else {
+          return "🟦 सेवा उपलब्ध नाही. (${response.statusCode})";
+        }
       }
     } catch (e) {
-      print("⚠ Exception: $e");
-      return "🟦 I'm having trouble connecting to the traffic server right now. Please try again with your commute question.";
+      print("⚠️ Exception: $e");
+      return "🟦 इंटरनेट कनेक्शन तपासा.";
     }
   }
 
-  // Exposed function for the app to use
+  // ✅ Public function
   static Future<String> getAIResponse(String userInput) async {
-    // This is the function called by the public interface
     return getCommuteResponse(userInput);
   }
 }

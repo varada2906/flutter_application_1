@@ -29,25 +29,39 @@ class _LoginPageState extends State<LoginPage> {
   // ================= SAVE USER TO FIRESTORE =================
   Future<void> _saveUserToFirestore(User user, {String? name, String? phone}) async {
     final ref = _firestore.collection("users").doc(user.uid);
+    
+    // Get user role based on email
+    String role = _getUserRole(user.email);
+    
     final userData = {
       "uid": user.uid,
       "email": user.email,
       "name": name ?? "User",
       "phone": phone ?? "",
-      "role": user.email == "admin@smartpune.com"
-          ? "admin"
-          : user.email == "driver@smartpune.com"
-              ? "driver"
-              : "user",
+      "role": role, // Use the helper method
       "createdAt": FieldValue.serverTimestamp(),
       "lastLogin": FieldValue.serverTimestamp(),
       "status": "active",
     };
+    
     final doc = await ref.get();
     if (!doc.exists) {
       await ref.set(userData);
     } else {
       await ref.update({"lastLogin": FieldValue.serverTimestamp()});
+    }
+  }
+  
+  // Helper method to determine user role
+  String _getUserRole(String? email) {
+    if (email == null) return "user";
+    
+    if (email == "admin@smartpune.com") {
+      return "admin";
+    } else if (email == "driver@smartpune.com" || email == "driver123@smartpune.com") {
+      return "driver";
+    } else {
+      return "user";
     }
   }
 
@@ -67,7 +81,7 @@ class _LoginPageState extends State<LoginPage> {
       }
       setState(() => _loading = false);
       _showSnackBar('Account created successfully!', isError: false);
-      _navigateBasedOnRole(emailC.text.trim());
+      _navigateBasedOnRole(user?.email);
     } on FirebaseAuthException catch (e) {
       setState(() => _loading = false);
       _showSnackBar(e.message ?? 'Sign up failed', isError: true);
@@ -88,7 +102,7 @@ class _LoginPageState extends State<LoginPage> {
       );
       if (userCredential.user != null) await _saveUserToFirestore(userCredential.user!);
       setState(() => _loading = false);
-      _navigateBasedOnRole(emailC.text.trim());
+      _navigateBasedOnRole(userCredential.user?.email);
     } on FirebaseAuthException catch (e) {
       setState(() => _loading = false);
       _showSnackBar(e.message ?? 'Login failed', isError: true);
@@ -98,10 +112,17 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  void _navigateBasedOnRole(String email) {
-    if (email == "admin@smartpune.com") {
+  void _navigateBasedOnRole(String? email) {
+    if (email == null) {
+      // Default to user page if email is null
+      Navigator.pushReplacementNamed(context, '/search');
+      return;
+    }
+    
+    // Check for driver email (support both formats)
+    if (email == "admin@smartpune.com" || email == "admin123@smartpune.com") { 
       Navigator.pushReplacementNamed(context, '/adminDashboard');
-    } else if (email == "driver@smartpune.com") {
+    } else if (email == "driver123@smartpune.com") {// Pass : 123456
       Navigator.pushReplacementNamed(context, '/driver/routeInfo');
     } else {
       Navigator.pushReplacementNamed(context, '/search');
@@ -117,12 +138,19 @@ class _LoginPageState extends State<LoginPage> {
         "timestamp": FieldValue.serverTimestamp(),
         "read": false,
       });
-    } catch (e) { print(e); }
+    } catch (e) { 
+      print("Notification error: $e"); 
+    }
   }
 
   Future<void> _forgotPassword() async {
-    final email = await showDialog<String>(context: context, builder: (_) => ForgotPasswordDialog());
+    final email = await showDialog<String>(
+      context: context, 
+      builder: (_) => ForgotPasswordDialog()
+    );
+    
     if (email == null || email.isEmpty) return;
+    
     setState(() => _resetLoading = true);
     try {
       await _auth.sendPasswordResetEmail(email: email);
@@ -136,7 +164,11 @@ class _LoginPageState extends State<LoginPage> {
 
   void _showSnackBar(String msg, {bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), backgroundColor: isError ? Colors.red.shade700 : Colors.green.shade700),
+      SnackBar(
+        content: Text(msg), 
+        backgroundColor: isError ? Colors.red.shade700 : Colors.green.shade700,
+        behavior: SnackBarBehavior.floating,
+      ),
     );
   }
 
@@ -144,7 +176,10 @@ class _LoginPageState extends State<LoginPage> {
     setState(() {
       _isLogin = !_isLogin;
       _formKey.currentState?.reset();
-      emailC.clear(); passC.clear(); nameC.clear(); phoneC.clear();
+      emailC.clear(); 
+      passC.clear(); 
+      nameC.clear(); 
+      phoneC.clear();
     });
   }
 
@@ -153,7 +188,6 @@ class _LoginPageState extends State<LoginPage> {
     return Scaffold(
       backgroundColor: secondaryBlue,
       body: SingleChildScrollView(
-        // Constrain the content to at least the height of the screen
         child: Column(
           children: [
             // --- TOP HEADER ---
@@ -195,7 +229,6 @@ class _LoginPageState extends State<LoginPage> {
             Container(
               color: lightBg,
               child: Container(
-                // Use constraints to prevent overflow while allowing scrolling
                 constraints: BoxConstraints(
                   minHeight: MediaQuery.of(context).size.height * 0.6,
                 ),
@@ -236,8 +269,14 @@ class _LoginPageState extends State<LoginPage> {
                       if(_isLogin) Align(
                         alignment: Alignment.centerRight,
                         child: TextButton(
-                          onPressed: _forgotPassword,
-                          child: const Text("Forgot password?", style: TextStyle(color: Colors.white70, fontSize: 12)),
+                          onPressed: _resetLoading ? null : _forgotPassword,
+                          child: _resetLoading 
+                            ? const SizedBox(
+                                height: 15, 
+                                width: 15, 
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white70)
+                              )
+                            : const Text("Forgot password?", style: TextStyle(color: Colors.white70, fontSize: 12)),
                         ),
                       ),
 
@@ -273,7 +312,6 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                         ],
                       ),
-                      // Extra space at bottom to ensure scrolling works well with keyboard
                       const SizedBox(height: 20),
                     ],
                   ),
@@ -323,17 +361,29 @@ class ForgotPasswordDialog extends StatefulWidget {
 
 class _ForgotPasswordDialogState extends State<ForgotPasswordDialog> {
   final emailC = TextEditingController();
+  
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
       title: const Text("Reset Password"),
       content: TextField(
         controller: emailC,
-        decoration: const InputDecoration(labelText: "Email", border: OutlineInputBorder()),
+        decoration: const InputDecoration(
+          labelText: "Email", 
+          border: OutlineInputBorder(),
+          hintText: "Enter your email",
+        ),
+        keyboardType: TextInputType.emailAddress,
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
-        ElevatedButton(onPressed: () => Navigator.pop(context, emailC.text.trim()), child: const Text("Send Reset Link")),
+        TextButton(
+          onPressed: () => Navigator.pop(context), 
+          child: const Text("Cancel")
+        ),
+        ElevatedButton(
+          onPressed: () => Navigator.pop(context, emailC.text.trim()), 
+          child: const Text("Send Reset Link")
+        ),
       ],
     );
   }

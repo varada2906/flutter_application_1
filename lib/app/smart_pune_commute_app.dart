@@ -21,7 +21,7 @@ import '../screens/auth/signup_page.dart';
 import '../screens/search_screen.dart';
 import '../screens/profile_screen.dart';
 
-import '../screens/feedback/feedback_screen.dart';
+import '../screens/feedback/feedback_detail_screen.dart';
 
 import '../screens/purchase_flow/purchase_screen.dart';
 import '../screens/purchase_flow/instruction_screen.dart';
@@ -44,8 +44,8 @@ class SmartPuneCommuteApp extends StatelessWidget {
         '/profile': (_) => ProfileScreen(),
         '/predictiveAlerts': (_) => PredictiveAlertsScreen(),
         '/paymentSuccess': (_) => PaymentPage (),
-        '/feedback': (_) => FeedbackScreen(),
-        '/feedbackDetail': (_) => FeedbackDetailScreen(),
+       '/feedback': (context) => FeedbackScreen(),
+       '/feedbackDetail': (context) => FeedbackDetailScreen(), 
         '/passengerFlowPrediction': (_) => PassengerFlowPredictionScreen(),
         '/purchase': (_) => PurchaseScreen(),
         '/instruction': (_) => InstructionScreen(),
@@ -53,7 +53,9 @@ class SmartPuneCommuteApp extends StatelessWidget {
         '/accessibilityInstruction': (_) => AccessibilityInstructionScreen(),
          '/chatbot': (context) => ChatScreen(),
          '/adminDashboard': (context) => AdminDashboard(),
-         '/driverDashboard': (context) =>  DriverDashboard(),
+         '/driverDashboard': (context) => DriverDashboard(
+               driverId: 'actual_driver_id_from_firebase', // Firebase वरून मिळालेला ID
+),
          '/driver/routeInfo': (context) => const RouteInfoScreen(),
         '/driver/liveLocation': (context) => const LiveLocationScreen(),
         '/driver/endTrip': (context) => const EndTripScreen(),

@@ -3,8 +3,8 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_application_1/models/route_suggstion_args.dart';
 
-
 enum RouteType { cheapest, fastest, mixed }
+//enum TransportMode { bus, train } // Add this enum
 
 // Data model for route options
 class RouteOption {
@@ -19,6 +19,7 @@ class RouteOption {
   final int stops;
   final String mode;
   final double rating;
+  final TransportMode transportMode; // Add this field
 
   RouteOption({
     required this.type,
@@ -31,6 +32,7 @@ class RouteOption {
     required this.details,
     required this.stops,
     required this.mode,
+    required this.transportMode, // Add this required parameter
     this.rating = 4.5,
   });
 }
@@ -45,6 +47,7 @@ class RouteSuggestionsScreen extends StatefulWidget {
 class _RouteSuggestionsScreenState extends State<RouteSuggestionsScreen> {
   late String fromLocation;
   late String toLocation;
+  late TransportMode selectedTransportMode; // Add this variable
   bool accessibilityMode = false;
 
   GoogleMapController? _mapController;
@@ -85,38 +88,30 @@ class _RouteSuggestionsScreenState extends State<RouteSuggestionsScreen> {
     return _locationCoords[key] ?? _locationCoords["Default"]!;
   }
 
-  // Function to check if train is available between locations
-  bool _isTrainAvailable(String from, String to) {
-    final fromLower = from.toLowerCase();
-    final toLower = to.toLowerCase();
-    
-    // List of cities where train is available
-    final trainCities = {
-      "pune", "mumbai", "delhi", "chennai", "kolkata", "bangalore", 
-      "hyderabad", "nagpur", "nashik", "goa", "kolhapur", "shirdi",
-      "agra"
-    };
-    
-    final fromHasTrain = trainCities.any((city) => fromLower.contains(city));
-    final toHasTrain = trainCities.any((city) => toLower.contains(city));
-    
-    // Train is available only if both cities have train connectivity
-    return fromHasTrain && toHasTrain;
-  }
-
-  // Generate route options based on locations
-  void _generateRouteOptions(String from, String to) {
+  // Generate route options based on locations and selected transport mode
+  void _generateRouteOptions(String from, String to, TransportMode mode) {
     _routeOptions.clear();
     
     // Convert to lowercase for easier matching
     final fromLower = from.toLowerCase();
     final toLower = to.toLowerCase();
     
-    // Check if train is available for this route
-    final trainAvailable = _isTrainAvailable(from, to);
+    if (mode == TransportMode.bus) {
+      // BUS ONLY ROUTES
+      _generateBusRoutes(fromLower, toLower);
+    } else {
+      // TRAIN ONLY ROUTES
+      _generateTrainRoutes(fromLower, toLower);
+    }
     
+    // Set default selection to cheapest
+    _selectedRoute = RouteType.cheapest;
+  }
+
+  // Generate only bus routes
+  void _generateBusRoutes(String fromLower, String toLower) {
     if (fromLower.contains("swargate") && toLower.contains("hinjawadi")) {
-      // Swargate to Hinjawadi - No train available (local city route)
+      // Swargate to Hinjawadi
       _routeOptions.addAll([
         RouteOption(
           type: RouteType.cheapest,
@@ -129,6 +124,7 @@ class _RouteSuggestionsScreenState extends State<RouteSuggestionsScreen> {
           details: "Direct PMPML bus via Katraj tunnel",
           stops: 15,
           mode: "Direct Bus",
+          transportMode: TransportMode.bus,
           rating: 4.2,
         ),
         RouteOption(
@@ -142,6 +138,7 @@ class _RouteSuggestionsScreenState extends State<RouteSuggestionsScreen> {
           details: "Metro to Shivaji Nagar + Bus 120A",
           stops: 8,
           mode: "Mixed Transport",
+          transportMode: TransportMode.bus,
           rating: 4.5,
         ),
         RouteOption(
@@ -155,11 +152,12 @@ class _RouteSuggestionsScreenState extends State<RouteSuggestionsScreen> {
           details: "Walk to station, Metro, Bus last mile",
           stops: 10,
           mode: "Multi-modal",
+          transportMode: TransportMode.bus,
           rating: 4.3,
         ),
       ]);
     } else if (fromLower.contains("pune") && toLower.contains("mumbai")) {
-      // Pune to Mumbai - Train is available
+      // Pune to Mumbai - Bus routes
       _routeOptions.addAll([
         RouteOption(
           type: RouteType.cheapest,
@@ -172,19 +170,21 @@ class _RouteSuggestionsScreenState extends State<RouteSuggestionsScreen> {
           details: "State transport bus via expressway",
           stops: 2,
           mode: "Direct Bus",
+          transportMode: TransportMode.bus,
           rating: 4.4,
         ),
         RouteOption(
           type: RouteType.fastest,
-          title: "TRAIN",
-          subtitle: "Fastest route",
-          icon: Icons.train,
+          title: "VOLVO BUS",
+          subtitle: "Fastest bus",
+          icon: Icons.airport_shuttle,
           iconColor: Colors.blue.shade700,
-          travelTime: "2h 45m",
+          travelTime: "3h 15m",
           price: "₹650",
-          details: "Deccan Queen Express, AC Chair Car",
-          stops: 5,
-          mode: "Train",
+          details: "Volvo AC bus, fewer stops",
+          stops: 1,
+          mode: "Luxury Bus",
+          transportMode: TransportMode.bus,
           rating: 4.7,
         ),
         RouteOption(
@@ -193,16 +193,17 @@ class _RouteSuggestionsScreenState extends State<RouteSuggestionsScreen> {
           subtitle: "Balanced option",
           icon: Icons.transfer_within_a_station,
           iconColor: Colors.purple.shade700,
-          travelTime: "3h 10m",
+          travelTime: "3h 40m",
           price: "₹520",
           details: "Bus to station + Metro to destination",
           stops: 7,
           mode: "Mixed Transport",
+          transportMode: TransportMode.bus,
           rating: 4.3,
         ),
       ]);
     } else if (fromLower.contains("pune") && toLower.contains("nashik")) {
-      // Pune to Nashik - Train is available
+      // Pune to Nashik - Bus routes
       _routeOptions.addAll([
         RouteOption(
           type: RouteType.cheapest,
@@ -215,123 +216,40 @@ class _RouteSuggestionsScreenState extends State<RouteSuggestionsScreen> {
           details: "MSRTC bus via NH60",
           stops: 8,
           mode: "Direct Bus",
+          transportMode: TransportMode.bus,
           rating: 4.2,
         ),
         RouteOption(
           type: RouteType.fastest,
-          title: trainAvailable ? "TRAIN + BUS" : "CAR POOL",
-          subtitle: "Fastest route",
-          icon: trainAvailable ? Icons.train : Icons.directions_car,
-          iconColor: Colors.blue.shade700,
-          travelTime: trainAvailable ? "3h 30m" : "3h 30m",
-          price: trainAvailable ? "₹480" : "₹600",
-          details: trainAvailable ? "Train to Igatpuri + Local bus" : "Shared cab via Mumbai-Pune Expressway",
-          stops: trainAvailable ? 6 : 2,
-          mode: trainAvailable ? "Mixed Transport" : "Car Pool",
-          rating: trainAvailable ? 4.4 : 4.6,
-        ),
-        RouteOption(
-          type: RouteType.mixed,
-          title: trainAvailable ? "CAR + LOCAL BUS" : "BUS + METRO",
-          subtitle: "Comfortable route",
-          icon: trainAvailable ? Icons.directions_car : Icons.directions,
-          iconColor: Colors.orange.shade700,
-          travelTime: trainAvailable ? "4h" : "3h",
-          price: trainAvailable ? "₹550" : "₹500",
-          details: trainAvailable ? "Car to station + Local transport" : "Combination of transport modes",
-          stops: trainAvailable ? 4 : 6,
-          mode: trainAvailable ? "Mixed Transport" : "Multi-modal",
-          rating: trainAvailable ? 4.3 : 4.2,
-        ),
-      ]);
-    } else if (fromLower.contains("pune") && toLower.contains("bangalore")) {
-      // Pune to Bangalore - Train is available
-      _routeOptions.addAll([
-        RouteOption(
-          type: RouteType.cheapest,
-          title: "BUS",
-          subtitle: "Cheapest route",
+          title: "SHIRDI EXPRESS",
+          subtitle: "Fastest bus",
           icon: Icons.directions_bus,
-          iconColor: Colors.green.shade700,
-          travelTime: "12h",
-          price: "₹1200",
-          details: "Overnight sleeper bus via NH48",
+          iconColor: Colors.blue.shade700,
+          travelTime: "4h",
+          price: "₹480",
+          details: "Express bus with limited stops",
           stops: 4,
-          mode: "Direct Bus",
-          rating: 4.3,
-        ),
-        RouteOption(
-          type: RouteType.fastest,
-          title: "FLIGHT",
-          subtitle: "Fastest route",
-          icon: Icons.flight,
-          iconColor: Colors.blue.shade700,
-          travelTime: "1h 15m",
-          price: "₹3500",
-          details: "Direct flight Pune to Bangalore",
-          stops: 0,
-          mode: "Flight",
-          rating: 4.8,
+          mode: "Express Bus",
+          transportMode: TransportMode.bus,
+          rating: 4.4,
         ),
         RouteOption(
           type: RouteType.mixed,
-          title: trainAvailable ? "TRAIN + METRO" : "BUS + METRO",
-          subtitle: trainAvailable ? "Scenic route" : "Eco-friendly route",
-          icon: trainAvailable ? Icons.train : Icons.directions,
-          iconColor: Colors.purple.shade700,
-          travelTime: trainAvailable ? "14h" : "13h",
-          price: trainAvailable ? "₹1800" : "₹1500",
-          details: trainAvailable ? "Train + Bangalore metro to destination" : "Overnight bus + Local transport",
-          stops: trainAvailable ? 8 : 6,
-          mode: trainAvailable ? "Mixed Transport" : "Multi-modal",
-          rating: trainAvailable ? 4.2 : 4.1,
-        ),
-      ]);
-    } else if (fromLower.contains("delhi") && toLower.contains("agra")) {
-      // Delhi to Agra - Train is available
-      _routeOptions.addAll([
-        RouteOption(
-          type: RouteType.cheapest,
-          title: "BUS",
-          subtitle: "Cheapest route",
-          icon: Icons.directions_bus,
-          iconColor: Colors.green.shade700,
-          travelTime: "3h 30m",
-          price: "₹350",
-          details: "Express bus via Yamuna Expressway",
-          stops: 2,
-          mode: "Direct Bus",
-          rating: 4.1,
-        ),
-        RouteOption(
-          type: RouteType.fastest,
-          title: "TRAIN",
-          subtitle: "Fastest route",
-          icon: Icons.train,
-          iconColor: Colors.blue.shade700,
-          travelTime: "2h 15m",
-          price: "₹550",
-          details: "Gatimaan Express, AC Chair Car",
-          stops: 1,
-          mode: "Train",
-          rating: 4.7,
-        ),
-        RouteOption(
-          type: RouteType.mixed,
-          title: "CAR + METRO",
-          subtitle: "Flexible route",
-          icon: Icons.directions_car,
+          title: "BUS + LOCAL BUS",
+          subtitle: "Local route",
+          icon: Icons.directions,
           iconColor: Colors.orange.shade700,
-          travelTime: "3h",
-          price: "₹450",
-          details: "Car to station + Local transport",
-          stops: 4,
-          mode: "Mixed Transport",
-          rating: 4.3,
+          travelTime: "4h 30m",
+          price: "₹400",
+          details: "Combination of buses",
+          stops: 10,
+          mode: "Multi-modal",
+          transportMode: TransportMode.bus,
+          rating: 4.2,
         ),
       ]);
     } else {
-      // Default routes for any location - Check train availability
+      // Default bus routes
       _routeOptions.addAll([
         RouteOption(
           type: RouteType.cheapest,
@@ -344,39 +262,228 @@ class _RouteSuggestionsScreenState extends State<RouteSuggestionsScreen> {
           details: "Direct bus service with AC",
           stops: 5,
           mode: "Direct Bus",
+          transportMode: TransportMode.bus,
           rating: 4.0,
         ),
         RouteOption(
           type: RouteType.fastest,
-          title: trainAvailable ? "TRAIN" : "CAR POOL",
+          title: "EXPRESS BUS",
           subtitle: "Fastest route",
-          icon: trainAvailable ? Icons.train : Icons.directions_car,
+          icon: Icons.directions_bus,
           iconColor: Colors.blue.shade700,
-          travelTime: trainAvailable ? "1h 45m" : "1h 30m",
-          price: trainAvailable ? "₹550" : "₹800",
-          details: trainAvailable ? "Express train service" : "Shared cab service",
-          stops: trainAvailable ? 3 : 1,
-          mode: trainAvailable ? "Train" : "Car Pool",
-          rating: trainAvailable ? 4.5 : 4.6,
+          travelTime: "2h",
+          price: "₹500",
+          details: "Express bus with fewer stops",
+          stops: 2,
+          mode: "Express Bus",
+          transportMode: TransportMode.bus,
+          rating: 4.5,
         ),
         RouteOption(
           type: RouteType.mixed,
-          title: trainAvailable ? "BUS + TRAIN" : "BUS + METRO",
+          title: "BUS + LOCAL",
           subtitle: "Eco-friendly route",
-          icon: trainAvailable ? Icons.transfer_within_a_station : Icons.directions,
+          icon: Icons.directions,
           iconColor: Colors.orange.shade700,
-          travelTime: trainAvailable ? "2h 15m" : "2h",
-          price: trainAvailable ? "₹420" : "₹400",
-          details: trainAvailable ? "Bus to station + Train journey" : "Combination of transport modes",
-          stops: trainAvailable ? 8 : 6,
-          mode: trainAvailable ? "Multi-modal" : "Multi-modal",
+          travelTime: "2h 45m",
+          price: "₹300",
+          details: "Combination of local buses",
+          stops: 8,
+          mode: "Multi-modal",
+          transportMode: TransportMode.bus,
           rating: 4.2,
         ),
       ]);
     }
-    
-    // Set default selection to cheapest
-    _selectedRoute = RouteType.cheapest;
+  }
+
+  // Generate only train routes
+  void _generateTrainRoutes(String fromLower, String toLower) {
+    if (fromLower.contains("pune") && toLower.contains("mumbai")) {
+      // Pune to Mumbai - Train routes
+      _routeOptions.addAll([
+        RouteOption(
+          type: RouteType.cheapest,
+          title: "PASSENGER TRAIN",
+          subtitle: "Cheapest train",
+          icon: Icons.train,
+          iconColor: Colors.green.shade700,
+          travelTime: "3h 45m",
+          price: "₹120",
+          details: "Passenger train, all stops",
+          stops: 15,
+          mode: "Passenger Train",
+          transportMode: TransportMode.train,
+          rating: 4.0,
+        ),
+        RouteOption(
+          type: RouteType.fastest,
+          title: "DECCAN QUEEN",
+          subtitle: "Fastest train",
+          icon: Icons.train,
+          iconColor: Colors.blue.shade700,
+          travelTime: "2h 45m",
+          price: "₹650",
+          details: "Deccan Queen Express, AC Chair Car",
+          stops: 5,
+          mode: "Express Train",
+          transportMode: TransportMode.train,
+          rating: 4.7,
+        ),
+        RouteOption(
+          type: RouteType.mixed,
+          title: "INTERCITY EXP",
+          subtitle: "Balanced option",
+          icon: Icons.train,
+          iconColor: Colors.purple.shade700,
+          travelTime: "3h 10m",
+          price: "₹320",
+          details: "Intercity Express, Second Class",
+          stops: 8,
+          mode: "Express Train",
+          transportMode: TransportMode.train,
+          rating: 4.3,
+        ),
+      ]);
+    } else if (fromLower.contains("delhi") && toLower.contains("agra")) {
+      // Delhi to Agra - Train routes
+      _routeOptions.addAll([
+        RouteOption(
+          type: RouteType.cheapest,
+          title: "PASSENGER",
+          subtitle: "Cheapest train",
+          icon: Icons.train,
+          iconColor: Colors.green.shade700,
+          travelTime: "4h",
+          price: "₹150",
+          details: "Passenger train, frequent stops",
+          stops: 12,
+          mode: "Passenger Train",
+          transportMode: TransportMode.train,
+          rating: 3.9,
+        ),
+        RouteOption(
+          type: RouteType.fastest,
+          title: "GATIMAAN EXP",
+          subtitle: "Fastest train",
+          icon: Icons.train,
+          iconColor: Colors.blue.shade700,
+          travelTime: "2h 15m",
+          price: "₹850",
+          details: "Gatimaan Express, AC Chair Car",
+          stops: 1,
+          mode: "High-speed Train",
+          transportMode: TransportMode.train,
+          rating: 4.8,
+        ),
+        RouteOption(
+          type: RouteType.mixed,
+          title: "SHATABDI EXP",
+          subtitle: "Comfortable option",
+          icon: Icons.train,
+          iconColor: Colors.orange.shade700,
+          travelTime: "2h 45m",
+          price: "₹650",
+          details: "Shatabdi Express with breakfast",
+          stops: 2,
+          mode: "Express Train",
+          transportMode: TransportMode.train,
+          rating: 4.5,
+        ),
+      ]);
+    } else if (fromLower.contains("pune") && toLower.contains("bangalore")) {
+      // Pune to Bangalore - Train routes
+      _routeOptions.addAll([
+        RouteOption(
+          type: RouteType.cheapest,
+          title: "EXPRESS",
+          subtitle: "Cheapest train",
+          icon: Icons.train,
+          iconColor: Colors.green.shade700,
+          travelTime: "18h",
+          price: "₹450",
+          details: "Express train, Sleeper class",
+          stops: 15,
+          mode: "Express Train",
+          transportMode: TransportMode.train,
+          rating: 4.1,
+        ),
+        RouteOption(
+          type: RouteType.fastest,
+          title: "UDYAN EXP",
+          subtitle: "Fastest train",
+          icon: Icons.train,
+          iconColor: Colors.blue.shade700,
+          travelTime: "14h",
+          price: "₹1200",
+          details: "AC Sleeper, limited stops",
+          stops: 8,
+          mode: "Superfast Train",
+          transportMode: TransportMode.train,
+          rating: 4.5,
+        ),
+        RouteOption(
+          type: RouteType.mixed,
+          title: "DURONTO EXP",
+          subtitle: "Premium option",
+          icon: Icons.train,
+          iconColor: Colors.purple.shade700,
+          travelTime: "15h",
+          price: "₹1800",
+          details: "AC 3 Tier, direct train",
+          stops: 4,
+          mode: "Duronto Express",
+          transportMode: TransportMode.train,
+          rating: 4.6,
+        ),
+      ]);
+    } else {
+      // Default train routes
+      _routeOptions.addAll([
+        RouteOption(
+          type: RouteType.cheapest,
+          title: "PASSENGER",
+          subtitle: "Cheapest train",
+          icon: Icons.train,
+          iconColor: Colors.green.shade700,
+          travelTime: "3h",
+          price: "₹80",
+          details: "Passenger train with all stops",
+          stops: 12,
+          mode: "Passenger Train",
+          transportMode: TransportMode.train,
+          rating: 3.8,
+        ),
+        RouteOption(
+          type: RouteType.fastest,
+          title: "EXPRESS",
+          subtitle: "Fastest train",
+          icon: Icons.train,
+          iconColor: Colors.blue.shade700,
+          travelTime: "1h 45m",
+          price: "₹450",
+          details: "Express train service",
+          stops: 3,
+          mode: "Express Train",
+          transportMode: TransportMode.train,
+          rating: 4.5,
+        ),
+        RouteOption(
+          type: RouteType.mixed,
+          title: "SUPERFAST",
+          subtitle: "Premium option",
+          icon: Icons.train,
+          iconColor: Colors.orange.shade700,
+          travelTime: "2h 15m",
+          price: "₹650",
+          details: "Superfast AC train",
+          stops: 2,
+          mode: "Superfast Train",
+          transportMode: TransportMode.train,
+          rating: 4.4,
+        ),
+      ]);
+    }
   }
 
   @override
@@ -400,13 +507,15 @@ class _RouteSuggestionsScreenState extends State<RouteSuggestionsScreen> {
     if (args != null) {
       fromLocation = args.from;
       toLocation = args.to;
+      selectedTransportMode = args.transportMode; // Get the transport mode from args
     } else {
       fromLocation = 'Swargate';
       toLocation = 'Hinjawadi Phase 2';
+      selectedTransportMode = TransportMode.bus; // Default to bus
     }
     _fromLatLng = _getLatLng(fromLocation);
     _toLatLng = _getLatLng(toLocation);
-    _generateRouteOptions(fromLocation, toLocation);
+    _generateRouteOptions(fromLocation, toLocation, selectedTransportMode);
   }
 
   void _onMapCreated(GoogleMapController controller) {
@@ -636,6 +745,11 @@ class _RouteSuggestionsScreenState extends State<RouteSuggestionsScreen> {
     return selectedOption.price;
   }
 
+  // Get title based on transport mode
+  String get _screenTitle {
+    return selectedTransportMode == TransportMode.bus ? 'Bus Routes' : 'Train Routes';
+  }
+
   @override
   Widget build(BuildContext context) {
     final Set<Marker> markers = {
@@ -662,7 +776,7 @@ class _RouteSuggestionsScreenState extends State<RouteSuggestionsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Route Suggestions'),
+        title: Text(_screenTitle),
         actions: [
           IconButton(
             icon: const Icon(Icons.accessibility),
@@ -677,6 +791,50 @@ class _RouteSuggestionsScreenState extends State<RouteSuggestionsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Transport mode indicator
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: selectedTransportMode == TransportMode.bus 
+                      ? Colors.green.shade50 
+                      : Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: selectedTransportMode == TransportMode.bus 
+                        ? Colors.green.shade200 
+                        : Colors.blue.shade200,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      selectedTransportMode == TransportMode.bus 
+                          ? Icons.directions_bus 
+                          : Icons.train,
+                      color: selectedTransportMode == TransportMode.bus 
+                          ? Colors.green.shade700 
+                          : Colors.blue.shade700,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      selectedTransportMode == TransportMode.bus 
+                          ? 'Showing Bus Services Only' 
+                          : 'Showing Train Services Only',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: selectedTransportMode == TransportMode.bus 
+                            ? Colors.green.shade700 
+                            : Colors.blue.shade700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
               // From/To locations card
               Card(
                 elevation: 2,
@@ -761,9 +919,9 @@ class _RouteSuggestionsScreenState extends State<RouteSuggestionsScreen> {
               const SizedBox(height: 20),
 
               // Route Options Title
-              const Text(
-                "Available Routes",
-                style: TextStyle(
+              Text(
+                "Available ${selectedTransportMode == TransportMode.bus ? 'Bus' : 'Train'} Routes",
+                style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                 ),
@@ -779,7 +937,7 @@ class _RouteSuggestionsScreenState extends State<RouteSuggestionsScreen> {
 
               const SizedBox(height: 16),
 
-              // Route Options Cards
+              // Route Options Cards (only show options for selected transport mode)
               ..._routeOptions.map((option) => _buildRouteOptionCard(option)).toList(),
 
               const SizedBox(height: 24),
@@ -829,7 +987,7 @@ class _RouteSuggestionsScreenState extends State<RouteSuggestionsScreen> {
                   showDialog(
                     context: context,
                     builder: (context) => AlertDialog(
-                      title: const Text("Confirm Booking"),
+                      title: Text("Confirm ${selectedTransportMode == TransportMode.bus ? 'Bus' : 'Train'} Booking"),
                       content: Text(
                         "Book ${_routeOptions.firstWhere((opt) => opt.type == _selectedRoute).title} from $fromLocation to $toLocation for ${_selectedRoutePrice}?",
                       ),
@@ -861,14 +1019,16 @@ class _RouteSuggestionsScreenState extends State<RouteSuggestionsScreen> {
                   ),
                   elevation: 2,
                 ),
-                child: const Row(
+                child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.confirmation_num),
-                    SizedBox(width: 10),
+                    Icon(selectedTransportMode == TransportMode.bus 
+                        ? Icons.directions_bus 
+                        : Icons.train),
+                    const SizedBox(width: 10),
                     Text(
-                      'Book Selected Route',
-                      style: TextStyle(
+                      'Book Selected ${selectedTransportMode == TransportMode.bus ? 'Bus' : 'Train'}',
+                      style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
                       ),

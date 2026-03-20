@@ -1,13 +1,12 @@
-// In models/route_suggestion_args.dart
+// In your models/route_suggestion_args.dart file
+import 'package:flutter/material.dart';
 
-// Add this enum
 enum TransportMode { bus, train }
 
 class RouteSuggestionArgs {
   final String from;
   final String to;
-  final TransportMode transportMode; // Add this field
+  final TransportMode transportMode;
 
-  // Update constructor to include transportMode
   RouteSuggestionArgs(this.from, this.to, this.transportMode);
 }

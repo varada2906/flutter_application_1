@@ -10,6 +10,9 @@ import 'package:flutter_application_1/admin/metro_details.dart';
 import 'package:flutter_application_1/admin/settingsPage.dart';
 import 'package:flutter_application_1/admin/ticket_manager.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:flutter_application_1/admin/admin_driver_tracking.dart'; 
+import 'package:firebase_auth/firebase_auth.dart'; // Add this for Firebase Auth
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -21,7 +24,7 @@ class AdminDashboard extends StatefulWidget {
 class _AdminDashboardState extends State<AdminDashboard> {
   int selectedIndex = 0;
 
-  // Updated menu items to include User Management
+  // Updated menu items to include Driver Tracking
   final List<String> menuItems = [
     "Dashboard",
     "Manage Routes",
@@ -30,9 +33,89 @@ class _AdminDashboardState extends State<AdminDashboard> {
     "Tickets",
     "Analytics",
     "Performance",
-    "User Management",  // New
+    "User Management",
+    "Driver Tracking",
     "Settings"
   ];
+
+  // Add Firebase Auth instance
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  // Logout function
+  Future<void> _logout() async {
+    try {
+      // Show loading dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return const Center(
+            child: CircularProgressIndicator(),
+          );
+        },
+      );
+
+      // Sign out from Firebase
+      await _auth.signOut();
+
+      // Close loading dialog
+      Navigator.pop(context);
+
+      // Navigate to login screen
+      Navigator.pushReplacementNamed(context, '/login');
+      
+    } catch (e) {
+      // Close loading dialog if error
+      Navigator.pop(context);
+      
+      // Show error message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Logout failed: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  // Show logout confirmation dialog
+  void _showLogoutDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Text('Logout'),
+          content: const Text('Are you sure you want to logout?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(
+                'Cancel',
+                style: TextStyle(color: Colors.grey.shade600),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context); // Close dialog
+                _logout(); // Call logout function
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red.shade600,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text('Logout'),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -58,34 +141,48 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 const SizedBox(height: 30),
                 
                 // Sidebar Menu Items
-                for (int i = 0; i < menuItems.length; i++)
-                  ListTile(
-                    selected: selectedIndex == i,
-                    selectedTileColor: Colors.green.shade400,
-                    leading: Icon(
-                      _getIconForMenu(menuItems[i]),
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                    title: Text(
-                      menuItems[i],
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: selectedIndex == i
-                            ? FontWeight.bold
-                            : FontWeight.normal,
-                      ),
-                    ),
-                    onTap: () => setState(() => selectedIndex = i),
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: menuItems.length,
+                    itemBuilder: (context, i) {
+                      return ListTile(
+                        selected: selectedIndex == i,
+                        selectedTileColor: Colors.green.shade400,
+                        leading: Icon(
+                          _getIconForMenu(menuItems[i]),
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                        title: Text(
+                          menuItems[i],
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: selectedIndex == i
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                          ),
+                        ),
+                        onTap: () => setState(() => selectedIndex = i),
+                      );
+                    },
                   ),
-                  
-                const Spacer(),
-                ListTile(
-                  leading: const Icon(Icons.logout, color: Colors.white),
-                  title: const Text("Logout", style: TextStyle(color: Colors.white)),
-                  onTap: () {
-                    // Add logout logic here
-                  },
+                ),
+                
+                // Logout Button
+                Container(
+                  decoration: BoxDecoration(
+                    border: Border(
+                      top: BorderSide(color: Colors.white.withOpacity(0.2)),
+                    ),
+                  ),
+                  child: ListTile(
+                    leading: const Icon(Icons.logout, color: Colors.white),
+                    title: const Text(
+                      "Logout", 
+                      style: TextStyle(color: Colors.white)
+                    ),
+                    onTap: _showLogoutDialog, // Show confirmation dialog
+                  ),
                 ),
                 const SizedBox(height: 20),
               ],
@@ -115,7 +212,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
       case "Performance": return Icons.speed;
       case "Settings": return Icons.settings;
       case "Tickets": return Icons.confirmation_number;
-      case "User Management": return Icons.people; // New
+      case "User Management": return Icons.people;
+      case "Driver Tracking": return Icons.track_changes;
       default: return Icons.circle;
     }
   }
@@ -130,8 +228,9 @@ class _AdminDashboardState extends State<AdminDashboard> {
       case 4: return const AdminTicketPage();
       case 5: return const AnalyticsPage();
       case 6: return const PerformancePage();
-      case 7: return const UserManagementPage(); // New
-      case 8: return const AdminSettingsPage();
+      case 7: return const UserManagementPage();
+      case 8: return const AdminDriverTrackingPage();
+      case 9: return const AdminSettingsPage();
       default: return const Center(child: Text("Page not found"));
     }
   }
@@ -155,12 +254,48 @@ class _AdminDashboardState extends State<AdminDashboard> {
             _infoCard("Total Trains", "18"),
             _infoCard("Active Routes", "45"),
             _infoCard("Delayed Services", "3"),
-            _infoCard("Total Users", "1,234"), // Added user count
-            _infoCard("New Users Today", "24"), // Added today's users
+            _infoCard("Total Users", "1,234"),
+            _infoCard("New Users Today", "24"),
+            _infoCard("Active Drivers", "35"),
+            _infoCard("On-Duty Drivers", "28"),
           ],
         ),
 
         const SizedBox(height: 40),
+        Text(
+          "Live Driver Status",
+          style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 10),
+        
+        // Live driver status summary
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(2, 2))],
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: _driverStatusIndicator("On Route", "18", Colors.green),
+              ),
+              Expanded(
+                child: _driverStatusIndicator("At Stop", "7", Colors.orange),
+              ),
+              Expanded(
+                child: _driverStatusIndicator("Break", "3", Colors.blue),
+              ),
+              Expanded(
+                child: _driverStatusIndicator("Offline", "7", Colors.grey),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 30),
+
         Text(
           "Ridership & Mode Overview",
           style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600),
@@ -228,6 +363,37 @@ class _AdminDashboardState extends State<AdminDashboard> {
     );
   }
 
+  Widget _driverStatusIndicator(String label, String count, Color color) {
+    return Column(
+      children: [
+        Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          count,
+          style: GoogleFonts.poppins(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+        Text(
+          label,
+          style: GoogleFonts.poppins(
+            fontSize: 12,
+            color: Colors.grey.shade600,
+          ),
+        ),
+      ],
+    );
+  }
+
   PieChartSectionData _buildPieSection(double value, String title, Color color) {
     return PieChartSectionData(
       color: color,
@@ -272,7 +438,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
   }
 }
 
-// ================= USER MANAGEMENT PAGE =================
+// ================= USER MANAGEMENT PAGE (unchanged) =================
 class UserManagementPage extends StatefulWidget {
   const UserManagementPage({super.key});
 
@@ -481,7 +647,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                   
                   const SizedBox(height: 30),
                   
-                  // Statistics Cards (in your style)
+                  // Statistics Cards
                   Wrap(
                     spacing: 20,
                     runSpacing: 20,

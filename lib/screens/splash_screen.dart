@@ -57,7 +57,7 @@ class _SplashScreenState extends State<SplashScreen> {
     // Hide status bar for true fullscreen
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
 
-    Future.delayed(const Duration(seconds: 7), () {
+    Future.delayed(const Duration(seconds: 2), () {
       if (mounted) {
         // Restore status bar
         SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);

@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:curved_navigation_bar/curved_navigation_bar.dart';
-import 'package:flutter_application_1/models/route_suggstion_args.dart';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_application_1/models/route_suggstion_args.dart';
 
 // Enum to represent the different transport modes
-enum TransportMode { bus, train }
+//enum TransportMode { bus, train }
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -257,187 +258,189 @@ class _SearchScreenState extends State<SearchScreen> {
       ),
     );
   }
-
   Widget _buildSearchCard() {
-    final (buttonText, buttonIcon) = _getModeDetails();
-    final bool isSearchEnabled = fromController.text.isNotEmpty && toController.text.isNotEmpty;
+  final (buttonText, buttonIcon) = _getModeDetails();
+  final bool isSearchEnabled = fromController.text.isNotEmpty && toController.text.isNotEmpty;
 
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-      margin: const EdgeInsets.symmetric(vertical: 16),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              buttonText,
-              style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87),
-            ),
-            const SizedBox(height: 12),
+  return Card(
+    elevation: 4,
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+    margin: const EdgeInsets.symmetric(vertical: 16),
+    child: Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            buttonText,
+            style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87),
+          ),
+          const SizedBox(height: 12),
 
-            // From/To Fields
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        "From",
-                        style: TextStyle(
-                          color: Colors.grey,
-                          fontSize: 12,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey.shade300),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.circle, size: 10, color: Colors.blue),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: TextField(
-                                controller: fromController,
-                                decoration: const InputDecoration.collapsed(
-                                  hintText: "Enter departure city",
-                                  hintStyle: TextStyle(color: Colors.grey),
-                                ),
-                                style: const TextStyle(fontSize: 16),
-                                onChanged: (_) => setState(() {}),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.swap_horiz, color: Colors.grey),
-                  onPressed: () {
-                    String temp = fromController.text;
-                    fromController.text = toController.text;
-                    toController.text = temp;
-                    setState(() {});
-                  },
-                ),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        "To",
-                        style: TextStyle(
-                          color: Colors.grey,
-                          fontSize: 12,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey.shade300),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.location_on, size: 18, color: Colors.red),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: TextField(
-                                controller: toController,
-                                decoration: const InputDecoration.collapsed(
-                                  hintText: "Enter destination city",
-                                  hintStyle: TextStyle(color: Colors.grey),
-                                ),
-                                style: const TextStyle(fontSize: 16),
-                                onChanged: (_) => setState(() {}),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            const Divider(),
-
-            // Date Picker Row
-            InkWell(
-              onTap: pickDateTime,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8.0),
-                child: Row(
+          // From/To Fields
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.calendar_today_outlined,
-                        color: Colors.blue, size: 20),
-                    const SizedBox(width: 8),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          getFormattedDateTime(),
-                          style: const TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 16),
-                        ),
-                        const Text("Date", style: TextStyle(color: Colors.grey)),
-                      ],
+                    const Text(
+                      "From",
+                      style: TextStyle(
+                        color: Colors.grey,
+                        fontSize: 12,
+                      ),
                     ),
-                    const Spacer(),
-                    const Icon(Icons.arrow_drop_down, color: Colors.grey),
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.shade300),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.circle, size: 10, color: Colors.blue),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: TextField(
+                              controller: fromController,
+                              decoration: const InputDecoration.collapsed(
+                                hintText: "Enter departure city",
+                                hintStyle: TextStyle(color: Colors.grey),
+                              ),
+                              style: const TextStyle(fontSize: 16),
+                              onChanged: (_) => setState(() {}),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),
-            ),
-
-            const SizedBox(height: 16),
-
-            // Search Button
-            ElevatedButton.icon(
-              onPressed: isSearchEnabled ? () {
-                // Add notifications
-                _addNewTicketNotification(fromController.text, toController.text);
-                _addNewDestinationBusNotification(fromController.text, toController.text);
-
-                // Navigate
-                Navigator.pushNamed(
-                  context,
-                  '/routeSuggestions',
-                  arguments:
-                      RouteSuggestionArgs(fromController.text, toController.text),
-                );
-              } : null,
-              icon: Icon(buttonIcon, size: 24),
-              label: Text(
-                buttonText,
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              IconButton(
+                icon: const Icon(Icons.swap_horiz, color: Colors.grey),
+                onPressed: () {
+                  String temp = fromController.text;
+                  fromController.text = toController.text;
+                  toController.text = temp;
+                  setState(() {});
+                },
               ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: isSearchEnabled ? Colors.blue.shade700 : Colors.grey.shade400,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      "To",
+                      style: TextStyle(
+                        color: Colors.grey,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.shade300),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.location_on, size: 18, color: Colors.red),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: TextField(
+                              controller: toController,
+                              decoration: const InputDecoration.collapsed(
+                                hintText: "Enter destination city",
+                                hintStyle: TextStyle(color: Colors.grey),
+                              ),
+                              style: const TextStyle(fontSize: 16),
+                              onChanged: (_) => setState(() {}),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          const Divider(),
+
+          // Date Picker Row
+          InkWell(
+            onTap: pickDateTime,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8.0),
+              child: Row(
+                children: [
+                  const Icon(Icons.calendar_today_outlined,
+                      color: Colors.blue, size: 20),
+                  const SizedBox(width: 8),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        getFormattedDateTime(),
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 16),
+                      ),
+                      const Text("Date", style: TextStyle(color: Colors.grey)),
+                    ],
+                  ),
+                  const Spacer(),
+                  const Icon(Icons.arrow_drop_down, color: Colors.grey),
+                ],
               ),
             ),
-          ],
-        ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // Search Button - THIS IS WHERE YOU NEED TO UPDATE THE CODE
+          ElevatedButton.icon(
+            onPressed: isSearchEnabled ? () {
+              // Add notifications
+              _addNewTicketNotification(fromController.text, toController.text);
+              _addNewDestinationBusNotification(fromController.text, toController.text);
+
+              // Navigate with selected transport mode
+              Navigator.pushNamed(
+                context,
+                '/routeSuggestions',
+                arguments: RouteSuggestionArgs(
+                  fromController.text, 
+                  toController.text,
+                  _selectedMode, // Pass the selected transport mode
+                ),
+              );
+            } : null,
+            icon: Icon(buttonIcon, size: 24),
+            label: Text(
+              buttonText,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: isSearchEnabled ? Colors.blue.shade700 : Colors.grey.shade400,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+        ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildPopularRoutes() {
     // UPDATED: Show both Firestore data and hardcoded routes
@@ -592,15 +595,20 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   Widget _buildSpecialOffers() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          "Special Offers",
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 8),
-        Container(
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      const Text(
+        "Special Offers",
+        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+      ),
+      const SizedBox(height: 8),
+      GestureDetector(
+        onTap: () {
+          Navigator.pushNamed(context, '/accessibilityModeList');
+        },
+        child: AnimatedContainer(  // Changed from Container to AnimatedContainer
+          duration: const Duration(milliseconds: 200),
           height: 120,
           width: double.infinity,
           decoration: BoxDecoration(
@@ -610,6 +618,14 @@ class _SearchScreenState extends State<SearchScreen> {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
+            // Add a subtle shadow for better tap feedback
+            boxShadow: [
+              BoxShadow(
+                color: Colors.orange.withOpacity(0.3),
+                blurRadius: 8,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
           child: const Padding(
             padding: EdgeInsets.all(16.0),
@@ -638,10 +654,11 @@ class _SearchScreenState extends State<SearchScreen> {
             ),
           ),
         ),
-        const SizedBox(height: 16),
-      ],
-    );
-  }
+      ),
+      const SizedBox(height: 16),
+    ],
+  );
+}
 
   // UPDATED WIDGET: Build the dynamic recommended destinations list
   Widget _buildRecommendedRoutes() {
