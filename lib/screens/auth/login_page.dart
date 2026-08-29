@@ -117,7 +117,7 @@ class _LoginPageState extends State<LoginPage> {
       // Default to user page if email is null
       Navigator.pushReplacementNamed(context, '/search');
       return;
-    }
+    } 
     
     // Check for driver email (support both formats)
     if (email == "admin@smartpune.com" || email == "admin123@smartpune.com") { 
@@ -130,6 +130,7 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _sendWelcomeNotification(String email, String name) async {
+    
     try {
       await _firestore.collection("notifications").add({
         "type": "new_user",
@@ -137,7 +138,7 @@ class _LoginPageState extends State<LoginPage> {
         "name": name,
         "timestamp": FieldValue.serverTimestamp(),
         "read": false,
-      });
+      });   
     } catch (e) { 
       print("Notification error: $e"); 
     }

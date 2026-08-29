@@ -1,7 +1,7 @@
 // In models/route_suggestion_args.dart
 
 // Add this enum
-enum TransportMode { bus, train }
+enum TransportMode { bus, train, metro }
 
 class RouteSuggestionArgs {
   final String from;

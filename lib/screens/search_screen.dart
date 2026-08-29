@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:curved_navigation_bar/curved_navigation_bar.dart';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_application_1/models/route_suggstion_args.dart';
+import 'dart:async';
 
-// Enum to represent the different transport modes
-//enum TransportMode { bus, train }
+
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -30,45 +29,121 @@ class _SearchScreenState extends State<SearchScreen> {
   // Firestore instance
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   
-  // Store buses from Firestore
+  // Store buses and metros from Firestore
   List<Map<String, dynamic>> _firestoreBuses = [];
+  List<Map<String, dynamic>> _firestoreMetros = [];
+  StreamSubscription? _busSubscription;
+  StreamSubscription? _metroSubscription;
 
   @override
   void initState() {
     super.initState();
     // Load data from Firestore
     _loadBusesFromFirestore();
+    _loadMetrosFromFirestore();
   }
 
-  // Load buses from Firestore
-  Future<void> _loadBusesFromFirestore() async {
-    try {
-      final snapshot = await _firestore.collection('buses').get();
-      setState(() {
-        _firestoreBuses = snapshot.docs.map((doc) {
-          final data = doc.data() as Map<String, dynamic>;
-          return {
+  void _loadMetrosFromFirestore() {
+    _metroSubscription = _firestore.collection('metros').snapshots().listen((snapshot) {
+      final List<Map<String, dynamic>> loaded = [];
+
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        
+        String from = '';
+        String to = '';
+        
+        // Check if we have separate from/to fields (new structure)
+        if (data['from'] != null && data['to'] != null && 
+            data['from'].toString().isNotEmpty && data['to'].toString().isNotEmpty) {
+          from = data['from'].toString();
+          to = data['to'].toString();
+        } 
+        // Fallback to stations field (old structure)
+        else if (data['stations'] != null && data['stations'].toString().isNotEmpty) {
+          String stations = data['stations'].toString();
+          // Split "A → B" or "A - B"
+          List parts = stations.contains('→') 
+              ? stations.split('→') 
+              : stations.contains('-') 
+                  ? stations.split('-') 
+                  : [stations, ''];
+          from = parts.length > 0 ? parts[0].trim() : '';
+          to = parts.length > 1 ? parts[1].trim() : '';
+        }
+
+        loaded.add({
+          'from': from,
+          'to': to,
+          'price': data['fare'] ?? '₹30',
+          'line': data['line'] ?? '',
+          'trains': data['trains']?.toString() ?? '0',
+          'frequency': data['frequency'] ?? 'Every 10-15 mins',
+          'duration': data['duration'] ?? '30-45 mins',
+          'rating': 4.5,
+          'stops': data['trains'] ?? 5,
+        });
+        
+        print('📝 Loaded metro: $from → $to');
+      }
+
+      if (mounted) {
+        setState(() {
+          _firestoreMetros = loaded;
+        });
+      }
+    });
+  }
+
+  void _loadBusesFromFirestore() {
+    print('🔄 Listening to Firestore buses collection...');
+
+    _busSubscription?.cancel();
+
+    _busSubscription = _firestore.collection('buses').snapshots().listen((snapshot) {
+      final List<Map<String, dynamic>> loadedBuses = [];
+
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+
+        if (data['from'] != null &&
+            data['to'] != null &&
+            data['from'].toString().isNotEmpty &&
+            data['to'].toString().isNotEmpty) {
+
+          loadedBuses.add({
             'id': doc.id,
-            'route': data['route'] ?? '',
+            'route': '${data['from']} → ${data['to']}',
             'buses': data['buses']?.toString() ?? '0',
             'type': data['type'] ?? 'Electric',
             'price': data['price'] ?? '₹500',
-            'from': data['from'] ?? '',
-            'to': data['to'] ?? '',
-            'rating': data['rating']?.toDouble() ?? 4.5,
+            'from': data['from'].toString(),
+            'to': data['to'].toString(),
+            'rating': (data['rating'] ?? 4.5).toDouble(),
             'stops': data['stops'] ?? 1,
-          };
-        }).toList();
-      });
-    } catch (e) {
-      print('Error loading buses: $e');
+          });
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _firestoreBuses = loadedBuses;
+        });
+      }
+    });
+  }
+
+  Future<void> _refreshData() async {
+    print("🔄 Refreshing data...");
+    await Future.delayed(const Duration(seconds: 1));
+    if (mounted) {
+      setState(() {});
     }
   }
 
   // Book ticket and save to Firestore
   Future<void> _bookTicket(String from, String to, String price) async {
     try {
-      // Add to tickets collection
       await _firestore.collection('tickets').add({
         'from': from,
         'to': to,
@@ -76,35 +151,38 @@ class _SearchScreenState extends State<SearchScreen> {
         'price': price,
         'bookingDate': DateTime.now(),
         'status': 'confirmed',
-        'userId': 'user123', // You can replace with actual user ID
+        'userId': 'user123',
       });
 
-      // Add notification
       _addNewTicketNotification(from, to);
       
-      // Show success message
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Ticket booked successfully! $from → $to'),
-          backgroundColor: Colors.green,
-          duration: Duration(seconds: 2),
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Ticket booked successfully! $from → $to'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
     } catch (e) {
       print('Error booking ticket: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to book ticket. Please try again.'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to book ticket. Please try again.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
   void _addNewTicketNotification(String from, String to) {
+    if (!mounted) return;
     setState(() {
       _notificationCount++;
-      _notifications.add({
+      _notifications.insert(0, {
         'title': 'New Ticket Booked!',
         'message': 'Your ticket from $from to $to has been successfully booked.',
         'type': 'ticket',
@@ -114,11 +192,12 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   void _addNewDestinationBusNotification(String from, String to) {
+    if (!mounted) return;
     setState(() {
       _notificationCount++;
-      _notifications.add({
+      _notifications.insert(0, {
         'title': 'New Route Available!',
-        'message': 'Express bus service from $from to $to is now available with new passes!',
+        'message': 'Express service from $from to $to is now available!',
         'type': 'bus_route',
         'time': '5 min ago',
       });
@@ -134,9 +213,11 @@ class _SearchScreenState extends State<SearchScreen> {
         ),
       ),
     ).then((_) {
-      setState(() {
-        _notificationCount = 0;
-      });
+      if (mounted) {
+        setState(() {
+          _notificationCount = 0;
+        });
+      }
     });
   }
 
@@ -155,49 +236,22 @@ class _SearchScreenState extends State<SearchScreen> {
     );
     if (pickedTime == null) return;
 
-    setState(() {
-      selectedDateTime = DateTime(
-        pickedDate.year,
-        pickedDate.month,
-        pickedDate.day,
-        pickedTime.hour,
-        pickedTime.minute,
-      );
-    });
+    if (mounted) {
+      setState(() {
+        selectedDateTime = DateTime(
+          pickedDate.year,
+          pickedDate.month,
+          pickedDate.day,
+          pickedTime.hour,
+          pickedTime.minute,
+        );
+      });
+    }
   }
 
   String getFormattedDateTime() {
     final month = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][selectedDateTime.month - 1];
     return "${selectedDateTime.day} $month, ${selectedDateTime.year}";
-  }
-
-  Widget routeOptionItem({
-    required IconData icon,
-    required Color iconColor,
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
-  }) {
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 8),
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: iconColor.withOpacity(0.15),
-          child: Icon(icon, color: iconColor),
-        ),
-        title: Text(
-          title,
-          style: const TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: 16,
-          ),
-        ),
-        subtitle: Text(subtitle),
-        onTap: onTap,
-      ),
-    );
   }
 
   void handleNavTap(int index) {
@@ -218,8 +272,10 @@ class _SearchScreenState extends State<SearchScreen> {
     switch (_selectedMode) {
       case TransportMode.bus:
         return ("Search Buses", Icons.directions_bus);
+      case TransportMode.metro:
+        return ("Search Metro", Icons.subway);
       case TransportMode.train:
-        return ("Search Trains", Icons.train);
+        throw UnimplementedError();
     }
   }
 
@@ -228,9 +284,11 @@ class _SearchScreenState extends State<SearchScreen> {
     final isSelected = _selectedMode == mode;
     return GestureDetector(
       onTap: () {
-        setState(() {
-          _selectedMode = mode;
-        });
+        if (mounted) {
+          setState(() {
+            _selectedMode = mode;
+          });
+        }
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -258,238 +316,260 @@ class _SearchScreenState extends State<SearchScreen> {
       ),
     );
   }
+  
   Widget _buildSearchCard() {
-  final (buttonText, buttonIcon) = _getModeDetails();
-  final bool isSearchEnabled = fromController.text.isNotEmpty && toController.text.isNotEmpty;
+    final (buttonText, buttonIcon) = _getModeDetails();
+    final bool isSearchEnabled = fromController.text.isNotEmpty && toController.text.isNotEmpty;
 
-  return Card(
-    elevation: 4,
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-    margin: const EdgeInsets.symmetric(vertical: 16),
-    child: Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            buttonText,
-            style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87),
-          ),
-          const SizedBox(height: 12),
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      margin: const EdgeInsets.symmetric(vertical: 16),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              buttonText,
+              style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87),
+            ),
+            const SizedBox(height: 12),
 
-          // From/To Fields
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      "From",
-                      style: TextStyle(
-                        color: Colors.grey,
-                        fontSize: 12,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade300),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.circle, size: 10, color: Colors.blue),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: TextField(
-                              controller: fromController,
-                              decoration: const InputDecoration.collapsed(
-                                hintText: "Enter departure city",
-                                hintStyle: TextStyle(color: Colors.grey),
-                              ),
-                              style: const TextStyle(fontSize: 16),
-                              onChanged: (_) => setState(() {}),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.swap_horiz, color: Colors.grey),
-                onPressed: () {
-                  String temp = fromController.text;
-                  fromController.text = toController.text;
-                  toController.text = temp;
-                  setState(() {});
-                },
-              ),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      "To",
-                      style: TextStyle(
-                        color: Colors.grey,
-                        fontSize: 12,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade300),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.location_on, size: 18, color: Colors.red),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: TextField(
-                              controller: toController,
-                              decoration: const InputDecoration.collapsed(
-                                hintText: "Enter destination city",
-                                hintStyle: TextStyle(color: Colors.grey),
-                              ),
-                              style: const TextStyle(fontSize: 16),
-                              onChanged: (_) => setState(() {}),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          const Divider(),
-
-          // Date Picker Row
-          InkWell(
-            onTap: pickDateTime,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8.0),
-              child: Row(
-                children: [
-                  const Icon(Icons.calendar_today_outlined,
-                      color: Colors.blue, size: 20),
-                  const SizedBox(width: 8),
-                  Column(
+            // From/To Fields
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        getFormattedDateTime(),
-                        style: const TextStyle(
-                            fontWeight: FontWeight.bold, fontSize: 16),
+                      const Text(
+                        "From",
+                        style: TextStyle(
+                          color: Colors.grey,
+                          fontSize: 12,
+                        ),
                       ),
-                      const Text("Date", style: TextStyle(color: Colors.grey)),
+                      const SizedBox(height: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey.shade300),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.circle, size: 10, color: Colors.blue),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: TextField(
+                                controller: fromController,
+                                decoration: const InputDecoration.collapsed(
+                                  hintText: "Enter departure city",
+                                  hintStyle: TextStyle(color: Colors.grey),
+                                ),
+                                style: const TextStyle(fontSize: 16),
+                                onChanged: (_) {
+                                  if (mounted) setState(() {});
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
-                  const Spacer(),
-                  const Icon(Icons.arrow_drop_down, color: Colors.grey),
-                ],
+                ),
+                IconButton(
+                  icon: const Icon(Icons.swap_horiz, color: Colors.grey),
+                  onPressed: () {
+                    String temp = fromController.text;
+                    fromController.text = toController.text;
+                    toController.text = temp;
+                    if (mounted) setState(() {});
+                  },
+                ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        "To",
+                        style: TextStyle(
+                          color: Colors.grey,
+                          fontSize: 12,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey.shade300),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.location_on, size: 18, color: Colors.red),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: TextField(
+                                controller: toController,
+                                decoration: const InputDecoration.collapsed(
+                                  hintText: "Enter destination city",
+                                  hintStyle: TextStyle(color: Colors.grey),
+                                ),
+                                style: const TextStyle(fontSize: 16),
+                                onChanged: (_) {
+                                  if (mounted) setState(() {});
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            const Divider(),
+
+            // Date Picker Row
+            InkWell(
+              onTap: pickDateTime,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8.0),
+                child: Row(
+                  children: [
+                    const Icon(Icons.calendar_today_outlined,
+                        color: Colors.blue, size: 20),
+                    const SizedBox(width: 8),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          getFormattedDateTime(),
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 16),
+                        ),
+                        const Text("Date", style: TextStyle(color: Colors.grey)),
+                      ],
+                    ),
+                    const Spacer(),
+                    const Icon(Icons.arrow_drop_down, color: Colors.grey),
+                  ],
+                ),
               ),
             ),
-          ),
 
-          const SizedBox(height: 16),
+            const SizedBox(height: 16),
 
-          // Search Button - THIS IS WHERE YOU NEED TO UPDATE THE CODE
-          ElevatedButton.icon(
-            onPressed: isSearchEnabled ? () {
-              // Add notifications
-              _addNewTicketNotification(fromController.text, toController.text);
-              _addNewDestinationBusNotification(fromController.text, toController.text);
+            // Search Button
+            ElevatedButton.icon(
+              onPressed: isSearchEnabled ? () {
+                _addNewTicketNotification(fromController.text, toController.text);
+                _addNewDestinationBusNotification(fromController.text, toController.text);
 
-              // Navigate with selected transport mode
-              Navigator.pushNamed(
-                context,
-                '/routeSuggestions',
-                arguments: RouteSuggestionArgs(
-                  fromController.text, 
-                  toController.text,
-                  _selectedMode, // Pass the selected transport mode
-                ),
-              );
-            } : null,
-            icon: Icon(buttonIcon, size: 24),
-            label: Text(
-              buttonText,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                Navigator.pushNamed(
+                  context,
+                  '/routeSuggestions',
+                  arguments: RouteSuggestionArgs(
+                    fromController.text, 
+                    toController.text,
+                    _selectedMode,
+                  ),
+                );
+              } : null,
+              icon: Icon(buttonIcon, size: 24),
+              label: Text(
+                buttonText,
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: isSearchEnabled ? Colors.blue.shade700 : Colors.grey.shade400,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
             ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: isSearchEnabled ? Colors.blue.shade700 : Colors.grey.shade400,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   Widget _buildPopularRoutes() {
-    // UPDATED: Show both Firestore data and hardcoded routes
-    final List<Map<String, dynamic>> allRoutes = [
-      // Hardcoded routes (always shown)
-      {
-        'city1': "Pune",
-        'city2': "Mumbai",
-        'rating': 4.8,
-        'price': "₹450",
-        'stops': 1,
-        'isFirestore': false,
-      },
-      {
-        'city1': "Pune",
-        'city2': "Nashik",
-        'rating': 4.6,
-        'price': "₹350",
-        'stops': 0,
-        'isFirestore': false,
-      },
-      {
-        'city1': "Pune",
-        'city2': "Goa",
-        'rating': 4.7,
-        'price': "₹900",
-        'stops': 3,
-        'isFirestore': false,
-      },
-      {
-        'city1': "Pune",
-        'city2': "Bangalore",
-        'rating': 4.5,
-        'price': "₹1200",
-        'stops': 2,
-        'isFirestore': false,
-      },
-      // Add Firestore routes (if available)
-      ..._firestoreBuses.take(4).map((bus) {
-        return {
-          'city1': bus['from'] ?? 'City',
-          'city2': bus['to'] ?? 'Destination',
-          'rating': bus['rating'] ?? 4.5,
-          'price': bus['price'] ?? '₹500',
-          'stops': bus['stops'] ?? 1,
+    final List<Map<String, dynamic>> allRoutes = [];
+    List<Map<String, dynamic>> selectedList = [];
+
+    // Mode wise data selection
+    if (_selectedMode == TransportMode.bus) {
+      selectedList = _firestoreBuses;
+    } else if (_selectedMode == TransportMode.metro) {
+      selectedList = _firestoreMetros;
+    }
+
+    print('📊 Showing ${selectedList.length} routes for $_selectedMode');
+
+    for (var item in selectedList) {
+      if (item['from'] != null &&
+          item['to'] != null &&
+          item['from'].toString().isNotEmpty &&
+          item['to'].toString().isNotEmpty) {
+
+        allRoutes.add({
+          'city1': item['from'].toString(),
+          'city2': item['to'].toString(),
+          'rating': item['rating'] ?? 4.5,
+          'price': item['price'] ?? (_selectedMode == TransportMode.bus ? '₹500' : '₹30'),
+          'stops': item['stops'] ?? 1,
           'isFirestore': true,
-        };
-      }).toList(),
-    ];
+          'type': _selectedMode == TransportMode.bus ? 'bus' : 'metro',
+          'buses': _selectedMode == TransportMode.bus ? item['buses'] ?? '0' : null,
+          'trains': _selectedMode == TransportMode.metro ? item['trains'] ?? '0' : null,
+          'frequency': _selectedMode == TransportMode.metro ? item['frequency'] : null,
+        });
+
+        print('✅ Added route: ${item['from']} → ${item['to']}');
+      }
+    }
+    
+    // Add default routes if Firestore is empty
+    if (allRoutes.isEmpty) {
+      print('⚠️ No Firestore routes found, showing default routes');
+      if (_selectedMode == TransportMode.bus) {
+        allRoutes.addAll([
+          {'city1': "Pune", 'city2': "Mumbai", 'rating': 4.8, 'price': "₹450", 'stops': 1, 'isFirestore': false, 'type': 'bus'},
+          {'city1': "Pune", 'city2': "Nashik", 'rating': 4.6, 'price': "₹350", 'stops': 0, 'isFirestore': false, 'type': 'bus'},
+          {'city1': "Pune", 'city2': "Goa", 'rating': 4.7, 'price': "₹900", 'stops': 3, 'isFirestore': false, 'type': 'bus'},
+        ]);
+      } else {
+        allRoutes.addAll([
+          {'city1': "PCMC", 'city2': "Civil Court", 'rating': 4.8, 'price': "₹20-₹40", 'stops': 12, 'isFirestore': false, 'type': 'metro', 'frequency': 'Every 10-15 mins'},
+          {'city1': "Vanaz", 'city2': "Ramwadi", 'rating': 4.6, 'price': "₹15-₹35", 'stops': 9, 'isFirestore': false, 'type': 'metro', 'frequency': 'Every 12-18 mins'},
+          {'city1': "Hinjewadi", 'city2': "Shivajinagar", 'rating': 4.7, 'price': "₹25-₹45", 'stops': 8, 'isFirestore': false, 'type': 'metro', 'frequency': 'Every 15-20 mins'},
+        ]);
+      }
+    }
+
+    // Remove duplicates
+    final uniqueRoutes = <Map<String, dynamic>>[];
+    final seen = <String>{};
+    
+    for (var route in allRoutes) {
+      final key = '${route['city1']}-${route['city2']}';
+      if (!seen.contains(key)) {
+        seen.add(key);
+        uniqueRoutes.add(route);
+      }
+    }
+    
+    print('📊 Total unique routes: ${uniqueRoutes.length}');
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -497,232 +577,298 @@ class _SearchScreenState extends State<SearchScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text(
-              "Popular Routes",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            Text(
+              _selectedMode == TransportMode.bus ? "Popular Bus Routes" : "Popular Metro Routes",
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             TextButton(
-              onPressed: () {},
-              child: const Text("View All",
+              onPressed: _refreshData,
+              child: const Text("Refresh",
                   style: TextStyle(color: Colors.blue, fontWeight: FontWeight.w600)),
             ),
           ],
         ),
         const SizedBox(height: 8),
-        // FIXED: Using SingleChildScrollView for horizontal scrolling
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: allRoutes.take(8).map((route) {
-              return GestureDetector(
-                onTap: () {
-                  setState(() {
-                    fromController.text = route['city1'];
-                    toController.text = route['city2'];
-                  });
-                },
-                child: Container(
-                  width: 150,
-                  margin: const EdgeInsets.only(right: 12),
-                  child: Card(
-                    elevation: 2,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    color: route['isFirestore'] ? Colors.blue.shade50 : null,
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(4),
-                                decoration: BoxDecoration(
-                                  color: Colors.yellow.shade100,
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Row(
-                                  children: [
-                                    const Icon(Icons.star, color: Colors.orange, size: 14),
-                                    const SizedBox(width: 4),
-                                    Text(route['rating'].toStringAsFixed(1), 
-                                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                                  ],
-                                ),
-                              ),
-                              if (route['isFirestore'])
+        
+        if (uniqueRoutes.isEmpty)
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.all(32.0),
+              child: Column(
+                children: [
+                  Icon(
+                    _selectedMode == TransportMode.bus ? Icons.directions_bus : Icons.subway,
+                    size: 64,
+                    color: Colors.grey,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    _selectedMode == TransportMode.bus ? 'No bus routes available' : 'No metro routes available',
+                    style: const TextStyle(fontSize: 16, color: Colors.grey),
+                  ),
+                  Text(
+                    _selectedMode == TransportMode.bus ? 'Add bus routes from admin panel' : 'Add metro routes from admin panel',
+                    style: const TextStyle(fontSize: 14, color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+          )
+        else
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: uniqueRoutes.take(8).map((route) {
+                return GestureDetector(
+                  onTap: () {
+                    if (mounted) {
+                      setState(() {
+                        fromController.text = route['city1'];
+                        toController.text = route['city2'];
+                      });
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Selected: ${route['city1']} → ${route['city2']}'),
+                          duration: const Duration(seconds: 1),
+                        ),
+                      );
+                    }
+                  },
+                  child: Container(
+                    width: 150,
+                    margin: const EdgeInsets.only(right: 12),
+                    child: Card(
+                      elevation: 2,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      color: route['isFirestore'] == true 
+                          ? (_selectedMode == TransportMode.bus ? Colors.blue.shade50 : Colors.purple.shade50)
+                          : null,
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
                                 Container(
-                                  padding: const EdgeInsets.all(2),
+                                  padding: const EdgeInsets.all(4),
                                   decoration: BoxDecoration(
-                                    color: Colors.green.shade100,
-                                    borderRadius: BorderRadius.circular(4),
+                                    color: Colors.yellow.shade100,
+                                    borderRadius: BorderRadius.circular(8),
                                   ),
-                                  child: const Text(
-                                    "Live",
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.green,
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.star, color: Colors.orange, size: 14),
+                                      const SizedBox(width: 4),
+                                      Text((route['rating'] as double).toStringAsFixed(1), 
+                                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                    ],
+                                  ),
+                                ),
+                                if (route['isFirestore'] == true)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: Colors.green.shade100,
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      _selectedMode == TransportMode.bus ? "Live" : "Active",
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        color: _selectedMode == TransportMode.bus ? Colors.green : Colors.purple,
+                                      ),
                                     ),
                                   ),
-                                ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Text("${route['city1']} - ${route['city2']}",
-                              style: const TextStyle(fontWeight: FontWeight.bold)),
-                          Text("${route['stops']} stops", 
-                              style: const TextStyle(color: Colors.grey, fontSize: 12)),
-                          const SizedBox(height: 8),
-                          Text(route['price'],
-                              style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.black)),
-                        ],
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text("${route['city1']} → ${route['city2']}",
+                                style: const TextStyle(fontWeight: FontWeight.bold)),
+                            Text("${route['stops']} stops", 
+                                style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                            if (route['type'] == 'metro' && route['frequency'] != null)
+                              Text(route['frequency'],
+                                  style: const TextStyle(color: Colors.grey, fontSize: 10)),
+                            const SizedBox(height: 8),
+                            Text(route['price'],
+                                style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.black)),
+                            if (route['isFirestore'] == true && route['buses'] != null && _selectedMode == TransportMode.bus)
+                              Text(
+                                "${route['buses']} buses available",
+                                style: const TextStyle(fontSize: 10, color: Colors.grey),
+                              ),
+                            if (route['isFirestore'] == true && route['trains'] != null && _selectedMode == TransportMode.metro)
+                              Text(
+                                "${route['trains']} trains available",
+                                style: const TextStyle(fontSize: 10, color: Colors.grey),
+                              ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
+                );
+              }).toList(),
+            ),
+          ),
+      ],
+    );
+  }
+  
+  Widget _buildSpecialOffers() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          "Special Offers",
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+        GestureDetector(
+          onTap: () {
+            Navigator.pushNamed(context, '/accessibilityModeList');
+          },
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            height: 120,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              gradient: LinearGradient(
+                colors: [Colors.orange.shade700, Colors.deepOrange.shade400],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.orange.withOpacity(0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
                 ),
-              );
-            }).toList(),
+              ],
+            ),
+            child: const Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        "20% OFF",
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 24,
+                            fontWeight: FontWeight.w900),
+                      ),
+                      Text(
+                        "Limited Offer - Book Now!",
+                        style: TextStyle(color: Colors.white70, fontSize: 14),
+                      ),
+                    ],
+                  ),
+                  Icon(Icons.local_offer, color: Colors.white, size: 40),
+                ],
+              ),
+            ),
           ),
         ),
+        const SizedBox(height: 16),
       ],
     );
   }
 
-  Widget _buildSpecialOffers() {
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      const Text(
-        "Special Offers",
-        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-      ),
-      const SizedBox(height: 8),
-      GestureDetector(
-        onTap: () {
-          Navigator.pushNamed(context, '/accessibilityModeList');
-        },
-        child: AnimatedContainer(  // Changed from Container to AnimatedContainer
-          duration: const Duration(milliseconds: 200),
-          height: 120,
-          width: double.infinity,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            gradient: LinearGradient(
-              colors: [Colors.orange.shade700, Colors.deepOrange.shade400],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            // Add a subtle shadow for better tap feedback
-            boxShadow: [
-              BoxShadow(
-                color: Colors.orange.withOpacity(0.3),
-                blurRadius: 8,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: const Padding(
-            padding: EdgeInsets.all(16.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      "20% OFF",
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 24,
-                          fontWeight: FontWeight.w900),
-                    ),
-                    Text(
-                      "Limited Offer - Book Now!",
-                      style: TextStyle(color: Colors.white70, fontSize: 14),
-                    ),
-                  ],
-                ),
-                Icon(Icons.local_offer, color: Colors.white, size: 40),
-              ],
-            ),
-          ),
-        ),
-      ),
-      const SizedBox(height: 16),
-    ],
-  );
-}
-
-  // UPDATED WIDGET: Build the dynamic recommended destinations list
   Widget _buildRecommendedRoutes() {
     late String titleText;
     late List<Map<String, dynamic>> routeData;
     late IconData modeIcon;
     late Color iconColor;
 
-    // Define different sets of recommendations based on the selected mode
-    switch (_selectedMode) {
-      case TransportMode.bus:
-        titleText = "Top Bus Routes 🚌";
-        modeIcon = Icons.directions_bus;
-        iconColor = Colors.green.shade700;
-        
-        // Combine hardcoded routes with Firestore routes
-        final hardcodedRoutes = [
-          {"title": "Delhi to Agra", "subtitle": "Express buses, 3 hours", "isFirestore": false},
-          {"title": "Bangalore to Chennai", "subtitle": "Frequent AC services", "isFirestore": false},
-          {"title": "Mumbai to Goa", "subtitle": "Overnight sleeper service", "isFirestore": false},
-        ];
-        
-        // Get Firestore routes
-        final firestoreRoutes = _firestoreBuses.take(3).map((bus) {
-          return {
-            "title": "${bus['from']} to ${bus['to']}",
-            "subtitle": "${bus['type']} - ${bus['price']}",
-            "isFirestore": true,
-          };
-        }).toList();
-        
-        // Combine routes (Firestore first, then hardcoded)
-        routeData = [...firestoreRoutes, ...hardcodedRoutes].take(3).toList();
-        break;
-        
-      case TransportMode.train:
-        titleText = "Top Train Routes 🚆";
-        modeIcon = Icons.train;
-        iconColor = Colors.blue.shade700;
-        routeData = [
-          {"title": "Delhi to Mumbai", "subtitle": "Rajdhani Express available", "isFirestore": false},
-          {"title": "Kolkata to Delhi", "subtitle": "High-speed Duronto", "isFirestore": false},
-          {"title": "Chennai to Hyderabad", "subtitle": "South India connectivity", "isFirestore": false},
-        ];
-        break;
+    if (_selectedMode == TransportMode.bus) {
+      titleText = "Top Bus Routes 🚌";
+      modeIcon = Icons.directions_bus;
+      iconColor = Colors.green.shade700;
+      
+      // Get Firestore bus routes
+      final firestoreRoutes = _firestoreBuses.map((bus) {
+        return {
+          "title": "${bus['from']} to ${bus['to']}",
+          "subtitle": "${bus['type']} - ${bus['price']} | ${bus['buses']} buses available",
+          "isFirestore": true,
+          "from": bus['from'],
+          "to": bus['to'],
+        };
+      }).toList();
+      
+      // Hardcoded bus routes as fallback
+      final hardcodedRoutes = [
+        {"title": "Delhi to Agra", "subtitle": "Express buses, 3 hours", "isFirestore": false, "from": "Delhi", "to": "Agra"},
+        {"title": "Bangalore to Chennai", "subtitle": "Frequent AC services", "isFirestore": false, "from": "Bangalore", "to": "Chennai"},
+        {"title": "Mumbai to Goa", "subtitle": "Overnight sleeper service", "isFirestore": false, "from": "Mumbai", "to": "Goa"},
+      ];
+      
+      routeData = [...firestoreRoutes, ...hardcodedRoutes].take(3).toList();
+      
+    } else {
+      titleText = "Top Metro Routes 🚆";
+      modeIcon = Icons.subway;
+      iconColor = Colors.purple.shade700;
+      
+      // Get Firestore metro routes
+      final firestoreRoutes = _firestoreMetros.map((metro) {
+        return {
+          "title": "${metro['from']} to ${metro['to']}",
+          "subtitle": "${metro['frequency']} | ${metro['duration']} | ${metro['price']}",
+          "isFirestore": true,
+          "from": metro['from'],
+          "to": metro['to'],
+        };
+      }).toList();
+      
+      // Hardcoded metro routes as fallback
+      final hardcodedRoutes = [
+        {"title": "PCMC to Civil Court", "subtitle": "Purple Line | Every 10-15 mins", "isFirestore": false, "from": "PCMC", "to": "Civil Court"},
+        {"title": "Vanaz to Ramwadi", "subtitle": "Aqua Line | Every 12-18 mins", "isFirestore": false, "from": "Vanaz", "to": "Ramwadi"},
+        {"title": "Hinjewadi to Shivajinagar", "subtitle": "Hinjewadi Line | Every 15-20 mins", "isFirestore": false, "from": "Hinjewadi", "to": "Shivajinagar"},
+      ];
+      
+      routeData = [...firestoreRoutes, ...hardcodedRoutes].take(3).toList();
     }
 
-    // Build the list of routeOptionItem widgets
     List<Widget> routeItems = routeData.map((data) {
       return GestureDetector(
         onTap: () {
-          final parts = data['title']!.split(' to ');
-          if (parts.length == 2) {
-            setState(() {
-              fromController.text = parts[0];
-              toController.text = parts[1];
-            });
+          if (data.containsKey('from') && data.containsKey('to')) {
+            if (mounted) {
+              setState(() {
+                fromController.text = data['from']!;
+                toController.text = data['to']!;
+              });
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Selected: ${data['from']} → ${data['to']}'),
+                  duration: const Duration(seconds: 1),
+                ),
+              );
+            }
           }
         },
         child: Card(
           margin: const EdgeInsets.symmetric(vertical: 8),
           elevation: 2,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-          color: data['isFirestore'] == true ? Colors.blue.shade50 : null,
+          color: data['isFirestore'] == true 
+              ? (_selectedMode == TransportMode.bus ? Colors.blue.shade50 : Colors.purple.shade50)
+              : null,
           child: ListTile(
             leading: CircleAvatar(
               backgroundColor: iconColor.withOpacity(0.15),
@@ -730,11 +876,13 @@ class _SearchScreenState extends State<SearchScreen> {
             ),
             title: Row(
               children: [
-                Text(
-                  data['title']!,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 16,
+                Expanded(
+                  child: Text(
+                    data['title']!,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 16,
+                    ),
                   ),
                 ),
                 if (data['isFirestore'] == true)
@@ -742,15 +890,15 @@ class _SearchScreenState extends State<SearchScreen> {
                     margin: const EdgeInsets.only(left: 8),
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                      color: Colors.green.shade100,
+                      color: _selectedMode == TransportMode.bus ? Colors.green.shade100 : Colors.purple.shade100,
                       borderRadius: BorderRadius.circular(4),
                     ),
-                    child: const Text(
-                      "Live",
+                    child: Text(
+                      _selectedMode == TransportMode.bus ? "Live" : "Active",
                       style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
-                        color: Colors.green,
+                        color: _selectedMode == TransportMode.bus ? Colors.green : Colors.purple,
                       ),
                     ),
                   ),
@@ -770,19 +918,27 @@ class _SearchScreenState extends State<SearchScreen> {
           style: const TextStyle(
               fontSize: 18, fontWeight: FontWeight.w600, color: Colors.black87),
         ),
-        ...routeItems, // Spread the list of widgets here
+        ...routeItems,
         const SizedBox(height: 20),
       ],
     );
   }
 
-  // --- MAIN BUILD METHOD ---
+  @override
+  void dispose() {
+    _busSubscription?.cancel();
+    _metroSubscription?.cancel();
+    fromController.dispose();
+    toController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
       
-       bottomNavigationBar: SafeArea(
+      bottomNavigationBar: SafeArea(
         top: false,
         child: CurvedNavigationBar(
           key: _bottomNavigationKey,
@@ -801,94 +957,116 @@ class _SearchScreenState extends State<SearchScreen> {
         ),
       ),
 
-      body: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: EdgeInsets.only(
-            top: 24,
-            left: 16,
-            right: 16,
-            bottom: 0
-          ),
-          child: SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 1. Welcome Header
-                Row(
-                  children: [
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Welcome Back! 👋',
-                            style: TextStyle(
-                                fontSize: 22, fontWeight: FontWeight.bold),
-                          ),
-                          SizedBox(height: 4),
-                          Text(
-                            'Ready for your next adventure?',
-                            style: TextStyle(color: Colors.grey),
-                          ),
-                        ],
-                      ),
-                    ),
-                    GestureDetector(
-                      onTap: _onNotificationTap,
-                      child: Stack(
-                        children: [
-                          CircleAvatar(
-                            radius: 20,
-                            backgroundColor: Colors.blue.shade100,
-                            child: const Icon(Icons.notifications_none,
-                                color: Colors.blue),
-                          ),
-                          if (_notificationCount > 0)
-                            Positioned(
-                              right: 0,
-                              top: 0,
-                              child: Container(
-                                padding: const EdgeInsets.all(4),
-                                decoration: const BoxDecoration(
-                                  color: Colors.red,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Text(
-                                  _notificationCount.toString(),
-                                  style: const TextStyle(
-                                      color: Colors.white, fontSize: 10),
-                                ),
-                              ),
-                            )
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 12),
-
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
+      body: RefreshIndicator(
+        onRefresh: _refreshData,
+        child: SafeArea(
+          bottom: false,
+          child: Padding(
+            padding: const EdgeInsets.only(
+              top: 24,
+              left: 16,
+              right: 16,
+              bottom: 0
+            ),
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
                     children: [
-                      _buildTransportButton(
-                          TransportMode.bus, "Bus", Icons.directions_bus),
-                      const SizedBox(width: 8),
-                      _buildTransportButton(
-                          TransportMode.train, "Train", Icons.train),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Welcome Back! 👋',
+                              style: TextStyle(
+                                  fontSize: 22, fontWeight: FontWeight.bold),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              'Ready for your next adventure?',
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                      ),
+                      GestureDetector(
+                        onTap: _onNotificationTap,
+                        child: Stack(
+                          children: [
+                            CircleAvatar(
+                              radius: 20,
+                              backgroundColor: Colors.blue.shade100,
+                              child: const Icon(Icons.notifications_none,
+                                  color: Colors.blue),
+                            ),
+                            if (_notificationCount > 0)
+                              Positioned(
+                                right: 0,
+                                top: 0,
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: const BoxDecoration(
+                                    color: Colors.red,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Text(
+                                    _notificationCount.toString(),
+                                    style: const TextStyle(
+                                        color: Colors.white, fontSize: 10),
+                                  ),
+                                ),
+                              )
+                          ],
+                        ),
+                      ),
                     ],
                   ),
-                ),
 
-                _buildSearchCard(),
-                _buildPopularRoutes(),
-                const SizedBox(height: 16),
-                _buildSpecialOffers(),
-                _buildRecommendedRoutes(),
-              ],
+                  const SizedBox(height: 12),
+
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        _buildTransportButton(
+                            TransportMode.bus, "Bus", Icons.directions_bus),
+                        const SizedBox(width: 8),
+                        _buildTransportButton(
+                            TransportMode.metro, "Metro", Icons.subway),
+                      ],
+                    ),
+                  ),
+
+                  _buildSearchCard(),
+                  _buildPopularRoutes(),
+                  const SizedBox(height: 16),
+                  _buildSpecialOffers(),
+                  _buildRecommendedRoutes(),
+                  
+                  // Show status indicators
+                  if (_selectedMode == TransportMode.bus && _firestoreBuses.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8, bottom: 16),
+                      child: Text(
+                        '${_firestoreBuses.length} bus routes available',
+                        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  if (_selectedMode == TransportMode.metro && _firestoreMetros.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8, bottom: 16),
+                      child: Text(
+                        '${_firestoreMetros.length} metro routes available',
+                        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
         ),
@@ -897,7 +1075,6 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 }
 
-// ⭐️ NEW: Notification Screen Widget for displaying notifications
 class NotificationScreen extends StatelessWidget {
   final List<Map<String, String>> notifications;
 

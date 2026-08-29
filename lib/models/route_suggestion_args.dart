@@ -1,7 +1,7 @@
 // In your models/route_suggestion_args.dart file
 import 'package:flutter/material.dart';
 
-enum TransportMode { bus, train }
+import 'transport_mode.dart';
 
 class RouteSuggestionArgs {
   final String from;

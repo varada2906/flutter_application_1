@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 
 class ChatGPTService {
   // तुझी API key
-  static const String apiKey = "AIzaSyAQNd0salc_tvDJPZ2f6KrJfTktKIKoAa8";
+  static const String apiKey = "AIzaSyBySse3NjatONwk1EoYGwYqDNKdFeG6NUw";
   static const int timeoutSeconds = 30;
   
   // ✅ फक्त एक model (हे try कर)

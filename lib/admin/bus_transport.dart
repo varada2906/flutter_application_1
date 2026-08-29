@@ -17,6 +17,7 @@ class _BusDetailsPageState extends State<BusDetailsPage> {
   List<Map<String, dynamic>> busList = [];
   
   // Text controllers
+  final TextEditingController busIdC = TextEditingController(); // New controller for Bus ID
   final TextEditingController routeC = TextEditingController();
   final TextEditingController fromC = TextEditingController();
   final TextEditingController toC = TextEditingController();
@@ -32,16 +33,18 @@ class _BusDetailsPageState extends State<BusDetailsPage> {
     _loadBusesFromFirestore();
   }
 
-  // Load buses from Firestore
+  // Load buses from Firestore with real-time updates
   Future<void> _loadBusesFromFirestore() async {
     try {
       final snapshot = await _firestore.collection('buses').get();
+      print('📊 Loading ${snapshot.docs.length} buses from Firestore');
+      
       setState(() {
         busList = snapshot.docs.map((doc) {
-          final data = doc.data() as Map<String, dynamic>;
+          final data = doc.data();
           return {
             "id": doc.id,
-            "route": _getDisplayRoute(data['from'] ?? '', data['to'] ?? ''), // FIXED: Use display format
+            "route": "${data['from'] ?? ''} → ${data['to'] ?? ''}",
             "from": data['from'] ?? '',
             "to": data['to'] ?? '',
             "buses": data['buses']?.toString() ?? '0',
@@ -51,52 +54,96 @@ class _BusDetailsPageState extends State<BusDetailsPage> {
           };
         }).toList();
       });
+      
+      print('✅ Loaded ${busList.length} buses');
     } catch (e) {
-      print('Error loading buses: $e');
+      print('❌ Error loading buses: $e');
+      _showError('Failed to load buses: $e');
     }
   }
 
-  // Helper method to create display route format
-  String _getDisplayRoute(String from, String to) {
-    return "$from → $to"; // This is the display format
+  // Check if Bus ID already exists
+  Future<bool> _isBusIdExists(String busId) async {
+    try {
+      final doc = await _firestore.collection('buses').doc(busId).get();
+      return doc.exists;
+    } catch (e) {
+      print('Error checking bus ID: $e');
+      return false;
+    }
   }
 
   // Add bus to Firestore
-  void _addBus() {
+  Future<void> _addBus() async {
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (_) => AlertDialog(
         title: const Text("Add Bus Route"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: fromC, 
-              decoration: const InputDecoration(labelText: "From City")
-            ),
-            TextField(
-              controller: toC, 
-              decoration: const InputDecoration(labelText: "To City")
-            ),
-            TextField(
-              controller: busesC,
-              decoration: const InputDecoration(labelText: "No. of Buses"),
-              keyboardType: TextInputType.number,
-            ),
-            TextField(
-              controller: typeC, 
-              decoration: const InputDecoration(labelText: "Bus Type (Electric/Diesel)")
-            ),
-            TextField(
-              controller: priceC, 
-              decoration: const InputDecoration(labelText: "Price")
-            ),
-            TextField(
-              controller: ratingC, 
-              decoration: const InputDecoration(labelText: "Rating (1-5)"),
-              keyboardType: TextInputType.number,
-            ),
-          ],
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: busIdC,
+                decoration: const InputDecoration(
+                  labelText: "Bus ID (e.g., B001, BUS123)",
+                  border: OutlineInputBorder(),
+                  hintText: "Enter unique Bus ID",
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: fromC, 
+                decoration: const InputDecoration(
+                  labelText: "From City",
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: toC, 
+                decoration: const InputDecoration(
+                  labelText: "To City",
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: busesC,
+                decoration: const InputDecoration(
+                  labelText: "No. of Buses",
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.number,
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: typeC, 
+                decoration: const InputDecoration(
+                  labelText: "Bus Type (Electric/Diesel)",
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: priceC, 
+                decoration: const InputDecoration(
+                  labelText: "Price (e.g., ₹500)",
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: ratingC, 
+                decoration: const InputDecoration(
+                  labelText: "Rating (1-5)",
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.number,
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -108,41 +155,95 @@ class _BusDetailsPageState extends State<BusDetailsPage> {
           ),
           ElevatedButton(
             onPressed: () async {
+              // Validate Bus ID
+              if (busIdC.text.trim().isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Please enter a Bus ID'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+                return;
+              }
+              
+              // Check if Bus ID already exists
+              final busId = busIdC.text.trim();
+              final exists = await _isBusIdExists(busId);
+              
+              if (exists) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Bus ID "$busId" already exists! Please use a unique ID.'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+                return;
+              }
+              
               if (fromC.text.isNotEmpty && toC.text.isNotEmpty && 
                   busesC.text.isNotEmpty && typeC.text.isNotEmpty &&
                   priceC.text.isNotEmpty && ratingC.text.isNotEmpty) {
+                
+                // Close dialog first
+                Navigator.pop(context);
+                
+                // Show loading
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Adding bus route...'),
+                    duration: Duration(seconds: 1),
+                  ),
+                );
+                
                 try {
-                  // Generate bus ID
-                  final busId = "B${(busList.length + 1).toString().padLeft(3, '0')}";
-                  
-                  // FIXED: Save only from and to separately, not the route with arrow
-                  await _firestore.collection('buses').doc(busId).set({
+                  // Parse values with proper types
+                  final busData = {
                     "from": fromC.text.trim(),
                     "to": toC.text.trim(),
-                    "buses": int.tryParse(busesC.text) ?? 0,
+                    "buses": int.tryParse(busesC.text.trim()) ?? 0,
                     "type": typeC.text.trim(),
                     "price": priceC.text.trim(),
-                    "rating": double.tryParse(ratingC.text) ?? 4.5,
+                    "rating": double.tryParse(ratingC.text.trim()) ?? 4.5,
                     "stops": 1,
-                    "createdAt": DateTime.now(),
-                  });
-
-                  // Clear fields and refresh
+                    "createdAt": FieldValue.serverTimestamp(),
+                  };
+                  
+                  print('📝 Adding bus with ID: $busId');
+                  print('📝 Bus data: $busData');
+                  
+                  // Add to Firestore with custom ID
+                  await _firestore.collection('buses').doc(busId).set(busData);
+                  
+                  // Clear fields
                   _clearFields();
+                  
+                  // Reload data
                   await _loadBusesFromFirestore();
-                  Navigator.pop(context);
                   
                   // Show success message
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: const Text('Bus route added to database!'),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('✅ Bus route "$busId" added successfully!'),
+                        backgroundColor: Colors.green,
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                  }
                 } catch (e) {
-                  print('Error adding bus: $e');
-                  _showError('Failed to add bus: $e');
+                  print('❌ Error adding bus: $e');
+                  if (mounted) {
+                    _showError('Failed to add bus: $e');
+                  }
                 }
+              } else {
+                // Show error if fields are empty
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Please fill all fields'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
               }
             },
             child: const Text("Add"),
@@ -155,6 +256,7 @@ class _BusDetailsPageState extends State<BusDetailsPage> {
   // Edit bus in Firestore
   void _editBus(int index) {
     final bus = busList[index];
+    busIdC.text = bus["id"] ?? ''; // Set the Bus ID (read-only for editing)
     fromC.text = bus["from"] ?? '';
     toC.text = bus["to"] ?? '';
     busesC.text = bus["buses"]?.toString() ?? '0';
@@ -164,38 +266,75 @@ class _BusDetailsPageState extends State<BusDetailsPage> {
     
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (_) => AlertDialog(
         title: const Text("Edit Bus Details"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: fromC, 
-              decoration: const InputDecoration(labelText: "From City")
-            ),
-            TextField(
-              controller: toC, 
-              decoration: const InputDecoration(labelText: "To City")
-            ),
-            TextField(
-              controller: busesC,
-              decoration: const InputDecoration(labelText: "No. of Buses"),
-              keyboardType: TextInputType.number,
-            ),
-            TextField(
-              controller: typeC, 
-              decoration: const InputDecoration(labelText: "Bus Type")
-            ),
-            TextField(
-              controller: priceC, 
-              decoration: const InputDecoration(labelText: "Price")
-            ),
-            TextField(
-              controller: ratingC, 
-              decoration: const InputDecoration(labelText: "Rating (1-5)"),
-              keyboardType: TextInputType.number,
-            ),
-          ],
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: busIdC,
+                decoration: const InputDecoration(
+                  labelText: "Bus ID",
+                  border: OutlineInputBorder(),
+                  hintText: "Bus ID cannot be changed",
+                ),
+                enabled: false, // Make Bus ID read-only during edit
+                style: TextStyle(color: Colors.grey.shade700),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: fromC, 
+                decoration: const InputDecoration(
+                  labelText: "From City",
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: toC, 
+                decoration: const InputDecoration(
+                  labelText: "To City",
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: busesC,
+                decoration: const InputDecoration(
+                  labelText: "No. of Buses",
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.number,
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: typeC, 
+                decoration: const InputDecoration(
+                  labelText: "Bus Type",
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: priceC, 
+                decoration: const InputDecoration(
+                  labelText: "Price",
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: ratingC, 
+                decoration: const InputDecoration(
+                  labelText: "Rating (1-5)",
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.number,
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -208,7 +347,18 @@ class _BusDetailsPageState extends State<BusDetailsPage> {
           ElevatedButton(
             onPressed: () async {
               try {
-                // FIXED: Update only from and to, not route
+                // Close dialog
+                Navigator.pop(context);
+                
+                // Show loading
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Updating bus route...'),
+                    duration: Duration(seconds: 1),
+                  ),
+                );
+                
+                // Update in Firestore (using existing ID)
                 await _firestore.collection('buses').doc(bus["id"]).update({
                   "from": fromC.text.trim(),
                   "to": toC.text.trim(),
@@ -216,24 +366,29 @@ class _BusDetailsPageState extends State<BusDetailsPage> {
                   "type": typeC.text.trim(),
                   "price": priceC.text.trim(),
                   "rating": double.tryParse(ratingC.text) ?? 4.5,
-                  "updatedAt": DateTime.now(),
+                  "updatedAt": FieldValue.serverTimestamp(),
                 });
 
-                // Clear fields and refresh
+                // Clear fields
                 _clearFields();
+                
+                // Reload data
                 await _loadBusesFromFirestore();
-                Navigator.pop(context);
                 
                 // Show success message
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: const Text('Bus details updated in database!'),
-                    backgroundColor: Colors.green,
-                  ),
-                );
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('✅ Bus details updated successfully!'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
               } catch (e) {
-                print('Error updating bus: $e');
-                _showError('Failed to update bus: $e');
+                print('❌ Error updating bus: $e');
+                if (mounted) {
+                  _showError('Failed to update bus: $e');
+                }
               }
             },
             child: const Text("Save"),
@@ -251,7 +406,7 @@ class _BusDetailsPageState extends State<BusDetailsPage> {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text("Delete Bus Route"),
-        content: const Text("Are you sure you want to delete this route?"),
+        content: Text("Are you sure you want to delete ${bus['route']} (${bus['id']})?"),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context), 
@@ -260,26 +415,40 @@ class _BusDetailsPageState extends State<BusDetailsPage> {
           ElevatedButton(
             onPressed: () async {
               try {
+                // Close dialog
+                Navigator.pop(context);
+                
+                // Show loading
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Deleting bus route...'),
+                    duration: Duration(seconds: 1),
+                  ),
+                );
+                
                 // Delete from Firestore
                 await _firestore.collection('buses').doc(bus["id"]).delete();
                 
-                // Refresh data
+                // Reload data
                 await _loadBusesFromFirestore();
-                Navigator.pop(context);
                 
                 // Show success message
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: const Text('Bus route deleted from database!'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('✅ Bus route "${bus["id"]}" deleted successfully!'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
               } catch (e) {
-                print('Error deleting bus: $e');
-                _showError('Failed to delete bus: $e');
+                print('❌ Error deleting bus: $e');
+                if (mounted) {
+                  _showError('Failed to delete bus: $e');
+                }
               }
             },
-            child: const Text("Delete"),
+            child: const Text("Delete", style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -288,6 +457,7 @@ class _BusDetailsPageState extends State<BusDetailsPage> {
 
   // Clear all text fields
   void _clearFields() {
+    busIdC.clear();
     fromC.clear();
     toC.clear();
     busesC.clear();
@@ -302,6 +472,7 @@ class _BusDetailsPageState extends State<BusDetailsPage> {
       SnackBar(
         content: Text(message),
         backgroundColor: Colors.red,
+        duration: const Duration(seconds: 3),
       ),
     );
   }
@@ -311,11 +482,15 @@ class _BusDetailsPageState extends State<BusDetailsPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text("Bus Details",
-            style: GoogleFonts.poppins(fontSize: 22, fontWeight: FontWeight.bold)),
+        Text(
+          "Bus Details",
+          style: GoogleFonts.poppins(fontSize: 22, fontWeight: FontWeight.bold)
+        ),
         const SizedBox(height: 10),
-        Text("Manage bus routes, total buses, and bus types.",
-            style: GoogleFonts.poppins(fontSize: 16, color: Colors.grey.shade700)),
+        Text(
+          "Manage bus routes, total buses, and bus types.",
+          style: GoogleFonts.poppins(fontSize: 16, color: Colors.grey.shade700),
+        ),
         const SizedBox(height: 20),
 
         // Add button
@@ -328,7 +503,10 @@ class _BusDetailsPageState extends State<BusDetailsPage> {
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.blue.shade700,
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8)
+              ),
             ),
           ),
         ),
@@ -336,47 +514,72 @@ class _BusDetailsPageState extends State<BusDetailsPage> {
 
         // Bus details table
         Expanded(
-          child: SingleChildScrollView(
-            child: DataTable(
-              border: TableBorder.all(color: Colors.grey.shade300),
-              headingRowColor: MaterialStateProperty.all(Colors.blue.shade100),
-              columns: const [
-                DataColumn(label: Text("Bus ID")),
-                DataColumn(label: Text("Route")),
-                DataColumn(label: Text("From")),
-                DataColumn(label: Text("To")),
-                DataColumn(label: Text("Buses")),
-                DataColumn(label: Text("Type")),
-                DataColumn(label: Text("Price")),
-                DataColumn(label: Text("Rating")),
-                DataColumn(label: Text("Actions")),
-              ],
-              rows: busList.asMap().entries.map((entry) {
-                int index = entry.key;
-                Map<String, dynamic> bus = entry.value;
-                return DataRow(cells: [
-                  DataCell(Text(bus["id"] ?? '')),
-                  DataCell(Text(bus["route"] ?? '')), // This will show "From → To"
-                  DataCell(Text(bus["from"] ?? '')),
-                  DataCell(Text(bus["to"] ?? '')),
-                  DataCell(Text(bus["buses"]?.toString() ?? '0')),
-                  DataCell(Text(bus["type"] ?? '')),
-                  DataCell(Text(bus["price"] ?? '')),
-                  DataCell(Text(bus["rating"]?.toString() ?? '4.5')),
-                  DataCell(Row(
+          child: busList.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      IconButton(
-                          icon: const Icon(Icons.edit, color: Colors.blue),
-                          onPressed: () => _editBus(index)),
-                      IconButton(
-                          icon: const Icon(Icons.delete, color: Colors.red),
-                          onPressed: () => _deleteBus(index)),
+                      Icon(Icons.directions_bus, size: 80, color: Colors.grey.shade400),
+                      const SizedBox(height: 16),
+                      Text(
+                        'No bus routes found',
+                        style: TextStyle(fontSize: 18, color: Colors.grey.shade600),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Click "Add Bus Route" to create one',
+                        style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
+                      ),
                     ],
-                  )),
-                ]);
-              }).toList(),
-            ),
-          ),
+                  ),
+                )
+              : SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: DataTable(
+                    border: TableBorder.all(color: Colors.grey.shade300),
+                    headingRowColor: MaterialStateProperty.all(Colors.blue.shade100),
+                    columnSpacing: 16,
+                    columns: const [
+                      DataColumn(label: Text("Bus ID", style: TextStyle(fontWeight: FontWeight.bold))),
+                      DataColumn(label: Text("Route", style: TextStyle(fontWeight: FontWeight.bold))),
+                      DataColumn(label: Text("From", style: TextStyle(fontWeight: FontWeight.bold))),
+                      DataColumn(label: Text("To", style: TextStyle(fontWeight: FontWeight.bold))),
+                      DataColumn(label: Text("Buses", style: TextStyle(fontWeight: FontWeight.bold))),
+                      DataColumn(label: Text("Type", style: TextStyle(fontWeight: FontWeight.bold))),
+                      DataColumn(label: Text("Price", style: TextStyle(fontWeight: FontWeight.bold))),
+                      DataColumn(label: Text("Rating", style: TextStyle(fontWeight: FontWeight.bold))),
+                      DataColumn(label: Text("Actions", style: TextStyle(fontWeight: FontWeight.bold))),
+                    ],
+                    rows: busList.asMap().entries.map((entry) {
+                      int index = entry.key;
+                      Map<String, dynamic> bus = entry.value;
+                      return DataRow(cells: [
+                        DataCell(Text(bus["id"] ?? '')),
+                        DataCell(Text(bus["route"] ?? '')),
+                        DataCell(Text(bus["from"] ?? '')),
+                        DataCell(Text(bus["to"] ?? '')),
+                        DataCell(Text(bus["buses"]?.toString() ?? '0')),
+                        DataCell(Text(bus["type"] ?? '')),
+                        DataCell(Text(bus["price"] ?? '')),
+                        DataCell(Text(bus["rating"]?.toString() ?? '4.5')),
+                        DataCell(Row(
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.edit, color: Colors.blue),
+                              onPressed: () => _editBus(index),
+                              tooltip: 'Edit',
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.red),
+                              onPressed: () => _deleteBus(index),
+                              tooltip: 'Delete',
+                            ),
+                          ],
+                        )),
+                      ]);
+                    }).toList(),
+                  ),
+                ),
         ),
       ],
     );

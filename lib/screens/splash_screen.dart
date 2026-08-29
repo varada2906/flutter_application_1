@@ -1,48 +1,8 @@
-// import 'package:flutter/material.dart';
-
-// class SplashScreen extends StatefulWidget {
-//   @override
-//   State<SplashScreen> createState() => _SplashScreenState();
-// }
-
-// class _SplashScreenState extends State<SplashScreen> {
-//   @override
-//   void initState() {
-//     super.initState();
-//     Future.delayed(Duration(seconds: 2), () {
-//       Navigator.pushReplacementNamed(context, '/login');
-//     });
-//   }
-
-//   @override
-//   Widget build(BuildContext context) {
-//     return Scaffold(
-//       backgroundColor: const Color.fromARGB(255, 115, 162, 202),
-//       body: Center(
-//         child: Column(
-//           mainAxisSize: MainAxisSize.min,
-//           children: [
-//             Icon(Icons.directions_bus_filled, size: 96, color: Colors.white),
-//             SizedBox(height: 24),
-//             Text(
-//               "The Best App for\nBooking Bus Tickets",
-//               textAlign: TextAlign.center,
-//               style: TextStyle(
-//                 color: Colors.white,
-//                 fontWeight: FontWeight.w600,
-//                 fontSize: 24,
-//               ),
-//             ),
-//           ],
-//         ),
-//       ),
-//     );
-//   }
-// }
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_application_1/screens/auth/login_page.dart';
+import 'package:http/http.dart' as http;
+import 'dart:typed_data';
 
 class SplashScreen extends StatefulWidget {
   @override
@@ -50,12 +10,19 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
+  Uint8List? imageBytes;
+  bool isLoading = true;
+  bool imageLoadError = false;
+
   @override
   void initState() {
     super.initState();
 
     // Hide status bar for true fullscreen
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+
+    // Load image first
+    _loadImage();
 
     Future.delayed(const Duration(seconds: 2), () {
       if (mounted) {
@@ -70,6 +37,36 @@ class _SplashScreenState extends State<SplashScreen> {
     });
   }
 
+  Future<void> _loadImage() async {
+    try {
+      // Using CORS proxy to bypass browser restrictions
+      final imageUrl = 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?q=80&w=2069&auto=format&fit=crop';
+      final proxyUrl = 'https://cors-anywhere.herokuapp.com/$imageUrl';
+      
+      final response = await http.get(Uri.parse(proxyUrl));
+      
+      if (response.statusCode == 200) {
+        if (mounted) {
+          setState(() {
+            imageBytes = response.bodyBytes;
+            isLoading = false;
+            imageLoadError = false;
+          });
+        }
+      } else {
+        throw Exception('Failed to load image');
+      }
+    } catch (e) {
+      print('Error loading image: $e');
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+          imageLoadError = true;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -77,11 +74,7 @@ class _SplashScreenState extends State<SplashScreen> {
         children: [
           // Transportation-themed background
           Positioned.fill(
-            child: Image.network(
-              'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?q=80&w=2069&auto=format&fit=crop',
-              fit: BoxFit.cover,
-              alignment: Alignment.center,
-            ),
+            child: _buildBackground(),
           ),
 
           // Gradient overlay
@@ -123,7 +116,7 @@ class _SplashScreenState extends State<SplashScreen> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      // Transport icons - FIXED: Wrap in SingleChildScrollView for horizontal scrolling if needed
+                      // Transport icons
                       SizedBox(
                         height: 60,
                         child: ListView(
@@ -268,9 +261,88 @@ class _SplashScreenState extends State<SplashScreen> {
       ),
     );
   }
+
+  // Separate method for background with null safety
+  Widget _buildBackground() {
+    if (isLoading) {
+      // Show loading placeholder
+      return Container(
+        color: Colors.blueGrey.shade900,
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.directions_bus,
+                size: 80,
+                color: Colors.white.withOpacity(0.3),
+              ),
+              SizedBox(height: 16),
+              Text(
+                "Loading beautiful Pune...",
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.5),
+                  fontSize: 16,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    
+    if (imageLoadError || imageBytes == null) {
+      // Show fallback when image fails to load
+      return Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.blue.shade900,
+              Colors.purple.shade900,
+            ],
+          ),
+        ),
+        child: Center(
+          child: Icon(
+            Icons.directions_bus_filled,
+            size: 120,
+            color: Colors.white.withOpacity(0.2),
+          ),
+        ),
+      );
+    }
+    
+    // Show loaded image
+    return Image.memory(
+      imageBytes!,
+      fit: BoxFit.cover,
+      alignment: Alignment.center,
+      errorBuilder: (context, error, stackTrace) {
+        print('Error displaying image: $error');
+        return Container(
+          color: Colors.blueGrey,
+          child: Center(
+            child: Icon(
+              Icons.directions_bus_filled,
+              size: 100,
+              color: Colors.white.withOpacity(0.5),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    // Restore system UI when leaving
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    super.dispose();
+  }
 }
 
-// Alternative: Smaller transport icons with Wrap widget
 class _TransportIcon extends StatelessWidget {
   final IconData icon;
   
@@ -291,7 +363,7 @@ class _TransportIcon extends StatelessWidget {
       child: Icon(
         icon,
         color: Colors.cyan[200],
-        size: 22, // Reduced size
+        size: 22,
       ),
     );
   }

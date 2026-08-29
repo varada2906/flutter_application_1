@@ -1,3 +1,24 @@
+// android/build.gradle.kts
+
+buildscript {
+    // Update Kotlin version if needed
+    ext.set("kotlin_version", "1.9.22")
+    
+    repositories {
+        google()
+        mavenCentral()
+    }
+    
+    dependencies {
+        // Update to Android Gradle Plugin 8.9.1
+        classpath("com.android.tools.build:gradle:8.9.1")
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:${ext.get("kotlin_version")}")
+        // If using Firebase
+        classpath("com.google.gms:google-services:4.4.2")
+    }
+}
+
+// Your existing allprojects block
 allprojects {
     repositories {
         google()
